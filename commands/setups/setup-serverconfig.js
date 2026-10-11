@@ -86,7 +86,7 @@ module.exports = {
         botManagers: updatedManagers,
         adminRoles: updatedAdminRoles,
         modRoles: updatedModRoles,
-        prefix: prefix || configData?.prefix || '!'
+        prefix: prefix || configData?.prefix || null
       });
 
       return interaction.reply({ content: '✅ Configuration updated successfully.', ephemeral: true });
@@ -108,7 +108,7 @@ module.exports = {
           `**Bot Managers:** ${botManagers.join(', ') || 'None'}\n` +
           `**Admin Roles:** ${adminRoles.map(id => `<@&${id}>`).join(', ') || 'None'}\n` +
           `**Moderator Roles:** ${modRoles.map(id => `<@&${id}>`).join(', ') || 'None'}\n` +
-          `**Prefix:** ${configData.prefix || '!'}`
+          `**Prefix:** ${configData.prefix || require('../../config.json').prefix || '.'}`
         )
         .setTimestamp();
 
@@ -123,7 +123,7 @@ module.exports = {
       const resetPrefix = interaction.options.getBoolean('resetprefix');
 
       let finalPrefix = configData?.prefix;
-      if (resetPrefix) finalPrefix = '!';
+      if (resetPrefix) finalPrefix = null;
 
       if (removeManagersInput) {
         const toRemove = removeManagersInput.split(',').map(id => id.trim());
