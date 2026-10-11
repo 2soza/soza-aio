@@ -2260,10 +2260,29 @@ module.exports = (client) => {
                 setTimeout(async () => {
                     try {
                         await migratePlayerForRecovery(player, 'queued track error');
+
+                        if (!client.riffy.players.has(guildId)) return;
+
+                        // After a load failure Riffy already starts the next
+                        // queued track by itself. Calling play() again here
+                        // threw "Queue is empty" and the catch below then
+                        // destroyed a player that was already playing the
+                        // replacement track.
+                        const alreadyAdvanced = player.playing &&
+                            player.current &&
+                            player.current !== track;
+                        if (alreadyAdvanced) return;
+
+                        if (!player.queue.length) {
+                            if (!player.playing) player.destroy();
+                            return;
+                        }
+
                         await player.play();
                     } catch (playError) {
                         console.error(`[V2 TRACK ERROR] Queue recovery failed in guild ${guildId}:`, playError);
-                        player.destroy();
+                        // Never kill a player that has already moved on.
+                        if (!player.playing) player.destroy();
                     }
                 }, 0);
                 return;
