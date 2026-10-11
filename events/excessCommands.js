@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const config = require('../config.json');
 const DisabledCommand = require('../models/commands/DisabledCommands');
+const { getMatchedPrefix } = require('../utils/prefix');
 
 module.exports = {
     name: 'messageCreate',
@@ -20,9 +21,9 @@ module.exports = {
             console.error('Error fetching server configuration from Mongoose:', err);
         }
         
-        const prefix = serverConfig?.prefix || config.prefix;
+        const prefix = getMatchedPrefix(message.content, serverConfig?.prefix);
 
-        if (!message.content.startsWith(prefix)) return;
+        if (!prefix) return;
 
         const args = message.content.slice(prefix.length).trim().split(/ +/);
         const commandName = args.shift().toLowerCase();
