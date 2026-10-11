@@ -11,6 +11,7 @@ const stickyTimers = new Map();
 const AutoResponderModel = require('../models/autoresponses/schema');
 const ServerConfig = require('../models/serverConfig/schema');
 const { handleFaqMessage } = require('../handlers/faqHandler');
+const { getMatchedPrefix } = require('../utils/prefix');
 
 
 const MILESTONES = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
@@ -247,9 +248,9 @@ module.exports = {
             }
 
             const serverConfig = await ServerConfig.findOne({ serverId: guildId });
-            const prefix = serverConfig?.prefix || config.prefix;
+            const prefix = getMatchedPrefix(message.content, serverConfig?.prefix);
 
-            if (!message.content.startsWith(prefix)) return;
+            if (!prefix) return;
 
             const args = message.content.slice(prefix.length).trim().split(/ +/);
             const commandName = args.shift().toLowerCase();
