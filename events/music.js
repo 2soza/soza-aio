@@ -497,6 +497,19 @@ module.exports = (client) => {
 
                 if (!channel) return;
 
+                // Lavalink can report a stream failure (trackError) while the
+                // banner image below is still rendering. Remember which start
+                // this is so a stale "NOW PLAYING / Active" panel is never
+                // posted for a track that already failed.
+                const startToken = (player.__trackStartToken || 0) + 1;
+                player.__trackStartToken = startToken;
+                const isStaleStart = () => (
+                    player.__trackStartToken !== startToken ||
+                    player.__recoveringTrackError ||
+                    player.__manualStop ||
+                    !client.riffy.players.has(guildId)
+                );
+
                 await advancedMessageManager.cleanupGuildMessages(client, guildId);
                 sessionManager.updateActivity(guildId);
 
@@ -657,7 +670,15 @@ module.exports = (client) => {
 
                 messageOptions.components.push(controlRow1, controlRow2);
 
+                if (isStaleStart()) return;
+
                 const message = await channel.send(messageOptions);
+
+                if (isStaleStart()) {
+                    // The track failed while this panel was being sent.
+                    message.delete().catch(() => { });
+                    return;
+                }
 
                 advancedMessageManager.addMessage(guildId, message.id, channel.id, 'track', {
                     isImportant: true,
@@ -702,7 +723,10 @@ module.exports = (client) => {
             try {
                 const guildId = player.guildId;
 
-             
+                const hadLyricsSession = lyricsStateManager.isActive(guildId) ||
+                    lyricsStateManager.collectors.has(guildId) ||
+                    lyricIntervals.has(guildId);
+
                 lyricsStateManager.clearGuild(guildId);
 
                 if (lyricIntervals.has(guildId)) {
@@ -713,7 +737,7 @@ module.exports = (client) => {
                 await advancedMessageManager.cleanupGuildMessages(client, guildId, ['lyrics']);
 
                 const channel = client.channels.cache.get(player.textChannel);
-                if (channel) {
+                if (channel && hadLyricsSession) {
                     const lyricsEndContainer = advancedMessageManager.createV2Container('info')
                         .addTextDisplayComponents(
                             textDisplay => textDisplay.setContent('**🎤 LYRICS AUTO-CLOSED**\nLyrics session ended with track.')
@@ -749,6 +773,14 @@ module.exports = (client) => {
                     player.__manualStop ||
                     player.queue.length > 0 ||
                     player.playing
+                ) return;
+
+                // Recovery may have destroyed this player already (all
+                // retries failed). Autoplay on a destroyed player throws
+                // "Cannot read properties of null (reading 'establishing')".
+                if (
+                    !player.connection ||
+                    client.riffy.players.get(player.guildId) !== player
                 ) return;
 
                 const channel = client.channels.cache.get(player.textChannel);
@@ -2186,7 +2218,7 @@ module.exports = (client) => {
             // does not claim that silent audio is still playing.
             await advancedMessageManager.cleanupGuildMessages(client, guildId, ['track']);
 
-            if ((player.__trackRecoveryAttempts || 0) >= 3) {
+            if ((player.__trackRecoveryAttempts || 0) >= 5) {
                 if (channel) {
                     const exhaustedContainer = advancedMessageManager.createV2Container('error')
                         .addTextDisplayComponents(
@@ -2277,34 +2309,54 @@ module.exports = (client) => {
                     ].filter(Boolean);
                     const failedIdentifier = trackInfo.identifier;
                     const failedUri = trackInfo.uri;
-                    const candidates = [];
+                    const youtubeCandidates = [];
+                    const fallbackCandidates = [];
                     const searchPlatform = client.riffy.options?.defaultSearchPlatform || 'ytsearch';
                     const requester = track.requester || track.info?.requester;
 
+                    const collectCandidates = async (terms, source, bucket, limit) => {
+                        try {
+                            const result = await client.riffy.resolve({
+                                query: terms,
+                                source,
+                                requester,
+                                node: player.node
+                            });
+
+                            for (const candidate of result?.tracks || []) {
+                                const info = candidate?.info || {};
+                                if (
+                                    !info.identifier ||
+                                    info.identifier === failedIdentifier ||
+                                    info.uri === failedUri ||
+                                    youtubeCandidates.some(c => c.info?.identifier === info.identifier) ||
+                                    fallbackCandidates.some(c => c.info?.identifier === info.identifier)
+                                ) continue;
+                                bucket.push(candidate);
+                                if (bucket.length >= limit) break;
+                            }
+                        } catch (searchError) {
+                            console.warn(`[V2 TRACK ERROR] ${source} search failed for "${terms}":`, searchError.message);
+                        }
+                    };
+
                     for (const terms of searchTerms) {
-                        const result = await client.riffy.resolve({
-                            query: terms,
-                            source: searchPlatform,
-                            requester,
-                            node: player.node
-                        });
-
-                        const matches = result?.tracks?.filter(candidate => {
-                            const info = candidate?.info || {};
-                            return (
-                                info.identifier &&
-                                info.identifier !== failedIdentifier &&
-                                info.uri !== failedUri &&
-                                !candidates.some(existing => existing.info?.identifier === info.identifier)
-                            );
-                        }) || [];
-
-                        candidates.push(...matches);
-                        if (candidates.length >= 5) break;
+                        if (youtubeCandidates.length >= 2) break;
+                        await collectCandidates(terms, searchPlatform, youtubeCandidates, 2);
                     }
 
+                    // When YouTube refuses to stream (login/bot checks), more
+                    // YouTube results usually fail the same way. Add
+                    // SoundCloud results so recovery has a different source.
+                    for (const terms of [[title, author].filter(Boolean).join(' '), title].filter(Boolean)) {
+                        if (fallbackCandidates.length >= 3) break;
+                        await collectCandidates(terms, 'scsearch', fallbackCandidates, 3);
+                    }
+
+                    const candidates = [...youtubeCandidates, ...fallbackCandidates].slice(0, 5);
+
                     if (!candidates.length) {
-                        throw new Error('No alternative playable YouTube result found');
+                        throw new Error('No alternative playable result found');
                     }
 
                     // Queue several alternatives. If Lavalink rejects the
