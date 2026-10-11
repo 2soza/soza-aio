@@ -255,11 +255,17 @@ module.exports = {
                         });
                     } catch (error) {
                         console.error('Error creating player:', error);
+                        const hasConnectedLavalinkNode = [
+                            ...(client.riffy?.nodeMap?.values() || [])
+                        ].some(node => node?.connected);
+                        const connectionError = hasConnectedLavalinkNode
+                            ? '**❌ CONNECTION FAILED**\nUnable to connect to the voice channel.\n\nPlease check the bot\'s Connect and Speak permissions, then try again.'
+                            : '**❌ LAVALINK UNAVAILABLE**\nThe configured Lavalink music server is not responding, so I can\'t create a music player right now.\n\nPlease check the Lavalink node configuration and try again when a node is online.';
                         
                         const errorContainer = new ContainerBuilder()
                             .setAccentColor(0xff4757)
                             .addTextDisplayComponents(
-                                textDisplay => textDisplay.setContent('**❌ CONNECTION FAILED**\nUnable to connect to the voice channel.\n\nPlease try again or contact support.')
+                                textDisplay => textDisplay.setContent(connectionError)
                             );
 
                         await interaction.editReply({ 

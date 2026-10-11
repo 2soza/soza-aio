@@ -10,14 +10,81 @@ const legacyNode = {
     secure: false
 };
 
+function normalizeNode(node, index) {
+    if (!node || typeof node !== 'object' || Array.isArray(node)) return null;
+
+    const endpoint = String(node.url || node.host || '').trim();
+    if (!endpoint) return null;
+
+    const hasScheme = /^[a-z][a-z\d+.-]*:\/\//i.test(endpoint);
+    const defaultSecure = node.secure === undefined
+        ? /^https:\/\//i.test(endpoint) || /^wss:\/\//i.test(endpoint)
+        : node.secure === true || String(node.secure).trim().toLowerCase() === 'true';
+    let parsedUrl;
+
+    try {
+        parsedUrl = new URL(
+            hasScheme
+                ? endpoint
+                : `${defaultSecure ? 'https' : 'http'}://${endpoint}`
+        );
+    } catch {
+        return null;
+    }
+
+    if (!['http:', 'https:', 'ws:', 'wss:'].includes(parsedUrl.protocol)) {
+        return null;
+    }
+
+    const secure = node.secure === undefined
+        ? parsedUrl.protocol === 'https:' || parsedUrl.protocol === 'wss:'
+        : defaultSecure;
+    const port = Number(node.port || parsedUrl.port || (secure ? 443 : 2333));
+    const password = String(node.password ?? node.auth ?? '').trim();
+
+    if (!parsedUrl.hostname || !Number.isInteger(port) || port < 1 || port > 65535 || !password) {
+        return null;
+    }
+
+    return {
+        name: String(node.name || `Lavalink-${index + 1}`),
+        host: parsedUrl.hostname,
+        port,
+        password,
+        secure
+    };
+}
+
+function normalizeNodes(parsed) {
+    if (!Array.isArray(parsed)) return [];
+
+    const uniqueNodes = new Map();
+    parsed.forEach((node, index) => {
+        const normalized = normalizeNode(node, index);
+        if (!normalized) {
+            console.warn(`[Lavalink] Skipping invalid node configuration at index ${index}.`);
+            return;
+        }
+
+        uniqueNodes.set(
+            `${normalized.host.toLowerCase()}:${normalized.port}`,
+            normalized
+        );
+    });
+
+    return [...uniqueNodes.values()];
+}
+
 function loadNodes() {
     const configuredNodes = process.env.LAVALINK_NODES_JSON?.trim();
     if (configuredNodes) {
         try {
             const parsed = JSON.parse(configuredNodes);
-            if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            const normalized = normalizeNodes(parsed);
+            if (normalized.length > 0) return normalized;
+            throw new Error('No valid node entries were found');
         } catch (error) {
-            console.warn(`[Lavalink] Could not parse LAVALINK_NODES_JSON: ${error.message}`);
+            throw new Error(`Invalid LAVALINK_NODES_JSON: ${error.message}`);
         }
     }
 
@@ -26,17 +93,8 @@ function loadNodes() {
 
     try {
         const parsed = JSON.parse(fs.readFileSync(nodesFile, 'utf8'));
-        if (Array.isArray(parsed) && parsed.length > 0) {
-            const uniqueNodes = new Map(
-                parsed
-                    .filter(node => node?.host && node?.port)
-                    .map(node => [
-                        `${String(node.host).trim().toLowerCase()}:${node.port}`,
-                        node
-                    ])
-            );
-            if (uniqueNodes.size > 0) return [...uniqueNodes.values()];
-        }
+        const normalized = normalizeNodes(parsed);
+        if (normalized.length > 0) return normalized;
     } catch (error) {
         console.warn(`[Lavalink] Could not load ${nodesFile}: ${error.message}`);
     }

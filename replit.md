@@ -9,6 +9,10 @@ Add these in Replit Secrets before starting the bot:
 
 The bot exits with an explicit error if either value is missing. Other API keys are only needed for the optional features that use them.
 
+## Lavalink music nodes
+
+The music player needs a reachable Lavalink server. To override the imported node list, add `LAVALINK_NODES_JSON` in Replit Secrets as a JSON array. Both Akeno-style entries (`url`, `auth`, `secure`) and Riffy-style entries (`host`, `port`, `password`, `secure`) are accepted. Keep node authentication in Secrets rather than committing it to a file. Public/shared nodes can be unreliable and may have their own usage limits.
+
 ## Start
 
 Install the locked dependencies and start the bot:
