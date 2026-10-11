@@ -4,3 +4,4 @@
 - [Birthday date timezone](birthday-age-timezone.md) — calculate age and days-until in the birthday owner's timezone, not UTC.
 - [Gemini API quota vs key status](gemini-api-quota.md) — an active stored key can still be unavailable because Google returns provider-level 429/quota limits.
 - [Git push ownership](git-push-control.md) — leave all Git pushes to the user in Replit's Git tools.
+- [Railway deployment](railway-deployment.md) — the user runs this Discord bot on Railway; provide production variable setup instructions there.
