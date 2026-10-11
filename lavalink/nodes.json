@@ -1,14 +1,187 @@
-[
-  {
-    "name": "Akeno",
-    "url": "lavalinkv4.serenetia.com:443",
-    "auth": "https://seretia.link/discord",
-    "secure": true
-  },
-  {
-    "name": "Akeno Backup",
-    "url": "lavalink.jirayu.net:13592",
-    "auth": "youshallnotpass",
-    "secure": false
-  }
-]
+lavalink:
+    plugins:
+        - dependency: dev.lavalink.youtube:youtube-plugin:f45bbb7aebfcbc1c553769e04af6cd43afa8b7c3
+          repository: https://maven.lavalink.dev/snapshots
+          snapshot: true
+        - dependency: com.github.topi314.lavasrc:lavasrc-plugin:4.8.3
+        - dependency: com.github.notdeltaxd:gaana-plugin:1.0.2
+          repository: https://jitpack.io
+        - dependency: com.github.Ankush26030:NothingLink:be87d98
+          repository: https://jitpack.io
+        - dependency: com.dunctebot:skybot-lavalink-plugin:1.7.0
+        - dependency: com.github.topi314.lavasearch:lavasearch-plugin:1.0.0
+        - dependency: com.github.topi314.lavalyrics:lavalyrics-plugin:1.1.0
+        - dependency: com.github.topi314.sponsorblock:sponsorblock-plugin:3.0.1
+    server:
+        bufferDurationMs: 400
+        filters:
+            channelMix: true
+            distortion: true
+            equalizer: true
+            karaoke: true
+            lowPass: true
+            rotation: true
+            timescale: true
+            tremolo: true
+            vibrato: true
+            volume: true
+        frameBufferDurationMs: 5000
+        opusEncodingQuality: 10
+        password: "CHANGE_ME_LAVALINK_PASSWORD"
+        playerUpdateInterval: 5
+        resamplingQuality: HIGH
+        searching:
+            soundcloud: true
+            youtube: true
+        sources:
+            bandcamp: true
+            http: true
+            local: true
+            soundcloud: true
+            twitch: true
+            vimeo: true
+            youtube: false
+        stats:
+            enabled: true
+            interval: 60
+        trackStuckThresholdMs: 10000
+        useSeekGhosting: true
+        youtubePlaylistLoadLimit: 6
+logging:
+    file:
+        path: ./logs/lavalink.log
+    level:
+        lavalink: INFO
+        root: INFO
+    request:
+        enabled: true
+        includeClientInfo: true
+        includeHeaders: false
+        includePayload: true
+        includeQueryString: true
+        maxPayloadLength: 10000
+metrics:
+    prometheus:
+        enabled: false
+        endpoint: /metrics
+plugins:
+    amazonmusic:
+        enabled: true
+        providers:
+            - ytsearch:"%ISRC%"
+            - ytsearch:%QUERY%
+        searchLimit: 10
+    dunctebot:
+        sources:
+            clypit: true
+            getyarn: true
+            mixcloud: true
+            ocremix: true
+            pixeldrain: true
+            pornhub: false
+            reddit: true
+            soundgasm: true
+            tiktok: false
+            tts: true
+            tumblr: false
+        ttsLanguage: en-US
+    gaana:
+        searchLimit: 20
+    instagram:
+        enabled: false
+    lavasrc:
+        applemusic:
+            albumLoadLimit: 6
+            countryCode: US
+            mediaAPIToken: "eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiIsImtpZCI6IldlYlBsYXlLaWQifQ.eyJpc3MiOiJBTVBXZWJQbGF5IiwiaWF0IjoxNzg5MTQ2OTA2LCJleHAiOjE3OTUxOTQ5MDYsInJvb3RfaHR0cHNfb3JpZ2luIjpbImFwcGxlLmNvbSJdfQ.N9nCdw8Bc2GRy3C_RBnCJ4MwhnHX8wz_kSzq4A3k-wfF7B_1T9JyQ0VZUMUu3HzjqWff09ZwL060B8JGAxJHTA"
+            playlistLoadLimit: 6
+        deezer:
+            arl: "DEEZER_ARL"
+            formats:
+                - MP3_128
+                - MP3_64
+            masterDecryptionKey: "DEEZER_MASTER_DECRYPTION_KEY"
+        flowerytts:
+            audioFormat: mp3
+            silence: 0
+            speed: 1
+            translate: false
+            voice: Adam
+        lyrics-sources:
+            deezer: false
+            lrcLib: true
+            spotify: true
+            vkmusic: false
+            yandexmusic: false
+            youtube: true
+        providers:
+            - ytsearch:"%ISRC%"
+            - ytsearch:%QUERY%
+        sources:
+            applemusic: true
+            deezer: true
+            flowerytts: true
+            jiosaavn: false
+            qobuz: false
+            spotify: true
+            tidal: false
+            vkmusic: false
+            yandexmusic: false
+            youtube: true
+            ytdlp: false
+        spotify:
+            albumLoadLimit: 6
+            clientId: "SPOTIFY_CLIENT_ID"
+            clientSecret: "SPOTIFY_CLIENT_SECRET"
+            countryCode: US
+            customTokenEndpoint: http://172.18.0.1:8099/api/token
+            playlistLoadLimit: 6
+            preferPartnerApi: true
+            preferV1SearchApi: false
+            resolveArtistsInSearch: false
+            spDc: "SPOTIFY_SP_DC_COOKIE"
+        youtube:
+            countryCode: US
+            language: en
+        ytdlp:
+            mixPlaylistLoadLimit: 25
+            path: yt-dlp
+            playlistLoadLimit: 1000
+            searchLimit: 10
+    pandora:
+        enabled: true
+        preferTokenApi: true
+        providers:
+            - ytsearch:"%ISRC%"
+            - ytsearch:%QUERY%
+        searchLimit: 6
+    youtube:
+        allowDirectPlaylistIds: true
+        allowDirectVideoIds: true
+        allowSearch: true
+        clients:
+            - MUSIC
+            - WEB
+            - TV
+            - TVHTML5_SIMPLY
+            - ANDROID_VR
+            - MWEB
+            - WEBEMBEDDED
+            - ANDROID_MUSIC
+        enabled: true
+        oauth:
+            enabled: true
+            refreshToken: null
+            skipInitialization: false
+        remoteCipher:
+            password: ""
+            url: https://cipher.kikkia.dev/
+            userAgent: your-service-name
+sentry:
+    dsn: ""
+    environment: ""
+server:
+    address: 0.0.0.0
+    http2:
+        enabled: true
+    port: 25567
