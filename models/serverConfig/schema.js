@@ -5,7 +5,7 @@ const ServerConfigSchema = new mongoose.Schema({
   botManagers: { type: [String], default: [] },
   adminRoles: { type: [String], default: [] },  
   modRoles: { type: [String], default: [] },   
-  prefix: { type: String, default: '!' }
+  prefix: { type: String, default: null }
 });
 
 module.exports = mongoose.model('ServerConfig', ServerConfigSchema);
