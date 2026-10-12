@@ -6,6 +6,8 @@ const axios = require('axios');
 const musicIcons = require('../UI/icons/musicicons');
 const { Riffy } = require('riffy');
 const { autoplayCollection } = require('../mongodb');
+const VoicePresence = require('../models/voicePresence/VoicePresence');
+const { start247Monitoring } = require('../utils/voiceStay');
 
 
 const lyricsStateManager = {
@@ -403,6 +405,9 @@ module.exports = (client) => {
         // needlessly polled.
         nodeWatchdog.timer = setInterval(recoverLavalinkNodes, 60000);
         nodeWatchdog.timer.unref?.();
+
+        // Restore saved always-on voice sessions after node reconnects and player destruction.
+        start247Monitoring(client);
         
         client.riffy.on('nodeConnect', (node) => {
             console.log(`\x1b[34m[ V2 LAVALINK ]\x1b[0m Node connected: \x1b[32m${node.name}\x1b[0m`);
@@ -438,7 +443,7 @@ module.exports = (client) => {
 
         client.on('voiceStateUpdate', async (oldState, newState) => {
             try {
-                if (oldState.member.id === client.user.id && oldState.channelId && !newState.channelId) {
+                if (oldState.member?.id === client.user.id && oldState.channelId && !newState.channelId) {
                     const player = client.riffy.players.get(oldState.guild.id);
                     if (player) {
                         await handlePlayerCleanup(client, oldState.guild.id, player, 'Bot disconnected');
@@ -451,6 +456,14 @@ module.exports = (client) => {
                     newState.guild.channels.cache.get(oldState.channelId)?.members.size === 1 &&
                     newState.guild.channels.cache.get(oldState.channelId)?.members.has(client.user.id)
                 ) {
+                    const keep247 = await VoicePresence.exists({
+                        guildId: oldState.guild.id,
+                        channelId: oldState.channelId,
+                        enabled: true,
+                        mode247: true
+                    });
+                    if (keep247) return;
+
                     const player = client.riffy.players.get(oldState.guild.id);
                     if (player) {
                         await handlePlayerCleanup(client, oldState.guild.id, player, 'Channel empty - Auto disconnect');
@@ -925,32 +938,54 @@ module.exports = (client) => {
                     }
 
                 } else {
-                    await handlePlayerCleanup(client, guildId, player, 'Queue ended');
-                    player.destroy();
-
-                    const queueEndContainer = advancedMessageManager.createV2Container('session_end')
-                        .addTextDisplayComponents(
-                            textDisplay => textDisplay.setContent('**🎵 MUSIC SESSION COMPLETED**')
-                        )
-                        .addSeparatorComponents(separator => separator)
-                        .addTextDisplayComponents(
-                            textDisplay => textDisplay.setContent(
-                                false
-                                    ? ''
-                                    : '**All tracks have been played successfully!**\n\n**📊 Session Summary:**\n• ✅ Playback completed without errors\n• 🔌 Player disconnected from voice channel\n• 🧹 All resources cleaned up automatically\n• 🎤 Lyrics sessions terminated\n• 📝 Message cache cleared\n\n*Ready for your next music session!*'
-                            )
-                        )
-                        .addSeparatorComponents(separator => separator)
-                        .addTextDisplayComponents(
-                            textDisplay => textDisplay.setContent('**🎯 Quick Actions:**\n• Use `/music play <song>` to start a new session\n• Use `/music autoplay true` for continuous music\n• Join a voice channel to begin')
-                        );
-
-                    const queueEndMsg = await channel.send({
-                        components: [queueEndContainer],
-                        flags: MessageFlags.IsComponentsV2
+                    const keep247 = await VoicePresence.exists({
+                        guildId,
+                        channelId: player.voiceChannel,
+                        enabled: true,
+                        mode247: true
                     });
 
-                    advancedMessageManager.addQuickDeleteMessage(client, queueEndMsg, 'session_end');
+                    if (keep247) {
+                        await advancedMessageManager.cleanupGuildMessages(client, guildId);
+                        const keepAliveContainer = advancedMessageManager.createV2Container('session_end')
+                            .addTextDisplayComponents(
+                                textDisplay => textDisplay.setContent(
+                                    '**🎵 MUSIC SESSION COMPLETED**\nThe queue has ended. I will stay in voice because 24/7 mode is enabled.'
+                                )
+                            );
+                        const keepAliveMsg = await channel.send({
+                            components: [keepAliveContainer],
+                            flags: MessageFlags.IsComponentsV2
+                        });
+                        advancedMessageManager.addQuickDeleteMessage(client, keepAliveMsg, 'session_end');
+                    } else {
+                        await handlePlayerCleanup(client, guildId, player, 'Queue ended');
+                        player.destroy();
+
+                        const queueEndContainer = advancedMessageManager.createV2Container('session_end')
+                            .addTextDisplayComponents(
+                                textDisplay => textDisplay.setContent('**🎵 MUSIC SESSION COMPLETED**')
+                            )
+                            .addSeparatorComponents(separator => separator)
+                            .addTextDisplayComponents(
+                                textDisplay => textDisplay.setContent(
+                                    false
+                                        ? ''
+                                        : '**All tracks have been played successfully!**\n\n**📊 Session Summary:**\n• ✅ Playback completed without errors\n• 🔌 Player disconnected from voice channel\n• 🧹 All resources cleaned up automatically\n• 🎤 Lyrics sessions terminated\n• 📝 Message cache cleared\n\n*Ready for your next music session!*'
+                                )
+                            )
+                            .addSeparatorComponents(separator => separator)
+                            .addTextDisplayComponents(
+                                textDisplay => textDisplay.setContent('**🎯 Quick Actions:**\n• Use `/music play <song>` to start a new session\n• Use `/music autoplay true` for continuous music\n• Join a voice channel to begin')
+                            );
+
+                        const queueEndMsg = await channel.send({
+                            components: [queueEndContainer],
+                            flags: MessageFlags.IsComponentsV2
+                        });
+
+                        advancedMessageManager.addQuickDeleteMessage(client, queueEndMsg, 'session_end');
+                    }
                 }
 
                 sessionManager.endSession(guildId);

@@ -12,6 +12,10 @@ const voicePresenceSchema = new mongoose.Schema(
             type: String,
             default: null
         },
+        textChannelId: {
+            type: String,
+            default: null
+        },
         enabled: {
             type: Boolean,
             default: true
