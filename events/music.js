@@ -739,7 +739,8 @@ module.exports = (client) => {
 
                 const hadLyricsSession = lyricsStateManager.isActive(guildId) ||
                     lyricsStateManager.collectors.has(guildId) ||
-                    lyricIntervals.has(guildId);
+                    lyricIntervals.has(guildId) ||
+                    advancedMessageManager.lyricsMessages.has(guildId);
 
                 lyricsStateManager.clearGuild(guildId);
 
@@ -1536,11 +1537,12 @@ module.exports = (client) => {
 
       
         async function startV2LiveLyrics(client, channel, player, track, lyricsResult, interaction) {
+            const guildId = player.guildId;
             try {
-                const guildId = player.guildId;
                 const syncedLines = parseSyncedLyrics(lyricsResult.syncedLyrics);
                 if (!syncedLines.length) return;
                 const lines = syncedLines.map(line => line.text);
+                const songDuration = Math.floor(track.length / 1000);
 
             
                 lyricsStateManager.startLyrics(guildId, {
@@ -2001,7 +2003,7 @@ module.exports = (client) => {
                 setTimeout(() => successReply.delete().catch(() => { }), 5000);
 
             } catch (error) {
-                //console.error('V2 Live lyrics start error:', error);
+                console.error('V2 Live lyrics start error:', error);
 
               
                 lyricsStateManager.clearGuild(guildId);
