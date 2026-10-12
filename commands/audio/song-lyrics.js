@@ -27,6 +27,7 @@ const {
     ButtonBuilder,
     ButtonStyle
 } = require('discord.js');
+const { fetchLyrics, stripTimestamps } = require('../../utils/lyrics');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -53,44 +54,31 @@ module.exports = {
         }).catch(() => {});
 
         try {
-           
-            const searchUrl = `https://lrclib.net/api/search?q=${encodeURIComponent(query)}`;
-            const searchResponse = await fetch(searchUrl);
-
-            if (!searchResponse.ok) {
-                return this.sendError(interaction, 'Search service unavailable. Try again later.');
-            }
-
-            const searchResults = await searchResponse.json();
-
-            if (!searchResults || searchResults.length === 0) {
+            const song = await fetchLyrics(query);
+            if (!song || !song.lyrics) {
                 return this.sendNotFound(interaction, query);
             }
 
-         
-            const song = searchResults[0];
-
-           
             if (song.instrumental) {
                 return this.sendInstrumental(interaction, song);
             }
 
-           
-            if (!song.plainLyrics && !song.syncedLyrics) {
+            const lyrics = song.plainLyrics || stripTimestamps(song.syncedLyrics || song.lyrics);
+            if (!lyrics) {
                 return this.sendNotFound(interaction, query);
             }
 
-         
-            const lyrics = song.plainLyrics || song.syncedLyrics.replace(/\[\d{2}:\d{2}\.\d{2}\] /g, '');
-
+            const trackName = song.trackName || query;
+            const artistName = song.artistName || 'Unknown artist';
           
             const headerContainer = new ContainerBuilder().setAccentColor(0x1DB954);
             headerContainer.addTextDisplayComponents(
                 new TextDisplayBuilder().setContent(
-                    `## 🎵 ${song.trackName}\n\n` +
-                    `**Artist:** ${song.artistName}\n` +
+                    `## 🎵 ${trackName}\n\n` +
+                    `**Artist:** ${artistName}\n` +
                     `**Album:** ${song.albumName || 'Unknown'}\n` +
                     `**Duration:** ${this.formatDuration(song.duration)}\n\n` +
+                    `**Source:** ${song.source}\n\n` +
                     `**Full Lyrics Below:**`
                 )
             );

@@ -8,6 +8,7 @@ const { Riffy } = require('riffy');
 const { autoplayCollection } = require('../mongodb');
 const VoicePresence = require('../models/voicePresence/VoicePresence');
 const { start247Monitoring } = require('../utils/voiceStay');
+const { fetchSyncedLyrics, parseSyncedLyrics, getCurrentLineIndex } = require('../utils/lyrics');
 
 
 const lyricsStateManager = {
@@ -1460,7 +1461,16 @@ module.exports = (client) => {
                         if (i.customId === 'v2_lyrics_force_restart') {
                             await i.deferUpdate();
                             lyricsStateManager.clearGuild(interaction.guildId);
-                            await startV2LiveLyrics(client, channel, player, player.current.info, await getLyrics(player.current.info.title, player.current.info.author, Math.floor(player.current.info.length / 1000)), interaction);
+                            const currentTrack = player.current.info;
+                            const lyricsResult = await getLyrics(currentTrack.title, currentTrack.author, Math.floor(currentTrack.length / 1000));
+                            if (lyricsResult?.syncedLyrics) {
+                                await startV2LiveLyrics(client, channel, player, currentTrack, lyricsResult, interaction);
+                            } else {
+                                await i.followUp({
+                                    content: 'No time-synced lyrics were found for this song.',
+                                    flags: MessageFlags.Ephemeral
+                                }).catch(() => {});
+                            }
                         }
                     });
 
@@ -1487,12 +1497,12 @@ module.exports = (client) => {
                     flags: MessageFlags.IsComponentsV2
                 });
 
-                const lyrics = await getLyrics(track.title, track.author, Math.floor(track.length / 1000));
+                const lyricsResult = await getLyrics(track.title, track.author, Math.floor(track.length / 1000));
 
-                if (!lyrics) {
+                if (!lyricsResult?.syncedLyrics || !parseSyncedLyrics(lyricsResult.syncedLyrics).length) {
                     const noLyricsContainer = advancedMessageManager.createV2Container('warning')
                         .addTextDisplayComponents(
-                            textDisplay => textDisplay.setContent('**❌ LYRICS NOT FOUND**\n\n**No lyrics available for:**\n**' + track.title + '** - *' + track.author + '*\n\n**Possible reasons:**\n• Song not in lyrics database\n• Instrumental track\n• Very new/obscure song\n• Title/artist mismatch')
+                            textDisplay => textDisplay.setContent('**❌ SYNCED LYRICS NOT FOUND**\n\n**No time-synced lyrics available for:**\n**' + track.title + '** - *' + track.author + '*\n\nWe checked LRCLib and the available lyrics providers. Live lyrics require timestamps; some songs may only have plain lyrics.')
                         );
 
                     await loadingReply.edit({
@@ -1505,7 +1515,7 @@ module.exports = (client) => {
                 }
 
                 await loadingReply.delete().catch(() => { });
-                await startV2LiveLyrics(client, channel, player, track, lyrics, interaction);
+                await startV2LiveLyrics(client, channel, player, track, lyricsResult, interaction);
 
             } catch (error) {
                 console.error('V2 Lyrics error:', error);
@@ -1525,15 +1535,17 @@ module.exports = (client) => {
         }
 
       
-        async function startV2LiveLyrics(client, channel, player, track, lyrics, interaction) {
+        async function startV2LiveLyrics(client, channel, player, track, lyricsResult, interaction) {
             try {
                 const guildId = player.guildId;
-                const lines = lyrics.split('\n').map(line => line.trim()).filter(Boolean);
-                const songDuration = Math.floor(track.length / 1000);
+                const syncedLines = parseSyncedLyrics(lyricsResult.syncedLyrics);
+                if (!syncedLines.length) return;
+                const lines = syncedLines.map(line => line.text);
 
             
                 lyricsStateManager.startLyrics(guildId, {
                     trackTitle: track.title,
+                    source: lyricsResult.source,
                     startTime: Date.now(),
                     messageId: null
                 });
@@ -1589,6 +1601,8 @@ module.exports = (client) => {
                 advancedMessageManager.addMessage(guildId, lyricsMessage.id, channel.id, 'lyrics');
 
           
+                let lastLineIndex = -1;
+                let lastProgressUpdate = -1;
                 const updateLyrics = async () => {
                     try {
                      
@@ -1640,12 +1654,16 @@ module.exports = (client) => {
                         }
 
                         
-                        const currentTime = Math.floor(currentPlayer.position / 1000);
-                        const linesPerSecond = lines.length / songDuration;
-                        const currentLineIndex = Math.floor(currentTime * linesPerSecond);
+                        const position = Math.max(0, Number(currentPlayer.position) || 0);
+                        const currentTime = Math.floor(position / 1000);
+                        const currentLineIndex = getCurrentLineIndex(syncedLines, position);
+                        const progressUpdate = Math.floor(currentTime / 15);
+                        if (currentLineIndex === lastLineIndex && progressUpdate === lastProgressUpdate) return;
+                        lastLineIndex = currentLineIndex;
+                        lastProgressUpdate = progressUpdate;
 
-                        const start = Math.max(0, currentLineIndex - 2);
-                        const end = Math.min(lines.length, currentLineIndex + 5);
+                        const start = Math.max(0, currentLineIndex - 5);
+                        const end = Math.min(lines.length, currentLineIndex + 6);
                         const visibleLines = lines.slice(start, end).map((line, i) => {
                             const actualIndex = start + i;
                             const isCurrentLine = actualIndex === currentLineIndex;
@@ -1663,6 +1681,7 @@ module.exports = (client) => {
                                         textDisplay => textDisplay.setContent([
                                             `**${track.title}**`,
                                             `*${track.author}*`,
+                                            `-# Lyrics source: ${lyricsResult.source}`,
                                             '',
                                             visibleLines || '🎵 *Waiting for lyrics...*'
                                         ].join('\n'))
@@ -1702,7 +1721,7 @@ module.exports = (client) => {
                 };
 
           
-                const interval = setInterval(updateLyrics, 2000);
+                const interval = setInterval(updateLyrics, 1000);
                 lyricIntervals.set(guildId, interval);
                 updateLyrics(); 
 
@@ -2030,38 +2049,7 @@ module.exports = (client) => {
         }
 
         async function getLyrics(trackName, artistName, duration) {
-            try {
-                trackName = trackName
-                    .replace(/\b(Official|Audio|Video|Lyrics|Theme|Soundtrack|Music|Full Version|HD|4K|Visualizer|Radio Edit|Live|Remix|Mix|Extended|Cover|Parody|Performance|Version|Unplugged|Reupload)\b/gi, "")
-                    .replace(/\s*[-_/|]\s*/g, " ")
-                    .replace(/\s+/g, " ")
-                    .trim();
-
-                artistName = artistName
-                    .replace(/\b(Topic|VEVO|Records|Label|Productions|Entertainment|Ltd|Inc|Band|DJ|Composer|Performer)\b/gi, "")
-                    .replace(/ x /gi, " & ")
-                    .replace(/\s+/g, " ")
-                    .trim();
-
-                let response = await axios.get(`https://lrclib.net/api/get`, {
-                    params: { track_name: trackName, artist_name: artistName, duration },
-                    timeout: 5000
-                });
-
-                if (response.data.syncedLyrics || response.data.plainLyrics) {
-                    return response.data.syncedLyrics || response.data.plainLyrics;
-                }
-
-                response = await axios.get(`https://lrclib.net/api/get`, {
-                    params: { track_name: trackName, artist_name: artistName },
-                    timeout: 5000
-                });
-
-                return response.data.syncedLyrics || response.data.plainLyrics;
-            } catch (error) {
-                console.error("V2 Lyrics fetch error:", error.response?.data?.message || error.message);
-                return null;
-            }
+            return fetchSyncedLyrics(trackName, artistName, duration);
         }
 
         function getVolumeBar(volume) {
