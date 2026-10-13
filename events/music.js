@@ -620,27 +620,27 @@ module.exports = (client) => {
                 const controlRow1 = new ActionRowBuilder().addComponents(
                     new ButtonBuilder()
                         .setCustomId(`v2_volume_down_${track.requester?.id || 'system'}`)
-                        .setEmoji('🔉')
+                        .setEmoji('<:1000004988:1559504542037573662>')
                         .setLabel('Vol -')
                         .setStyle(ButtonStyle.Secondary),
                     new ButtonBuilder()
                         .setCustomId(`v2_pause_${track.requester?.id || 'system'}`)
-                        .setEmoji('⏸️')
+                        .setEmoji('<:1000004991:1559504549394382920>')
                         .setLabel('Pause')
                         .setStyle(ButtonStyle.Primary),
                     new ButtonBuilder()
                         .setCustomId(`v2_resume_${track.requester?.id || 'system'}`)
-                        .setEmoji('▶️')
+                        .setEmoji('<:1000004990:1559504547079127050>')
                         .setLabel('Resume')
                         .setStyle(ButtonStyle.Success),
                     new ButtonBuilder()
                         .setCustomId(`v2_skip_${track.requester?.id || 'system'}`)
-                        .setEmoji('⏭️')
+                        .setEmoji('<:1000004992:1559504551608983643>')
                         .setLabel('Skip')
                         .setStyle(ButtonStyle.Secondary),
                     new ButtonBuilder()
                         .setCustomId(`v2_volume_up_${track.requester?.id || 'system'}`)
-                        .setEmoji('🔊')
+                        .setEmoji('<:1000004989:1559504544600424498>')
                         .setLabel('Vol +')
                         .setStyle(ButtonStyle.Secondary)
                 );
@@ -648,27 +648,27 @@ module.exports = (client) => {
                 const controlRow2 = new ActionRowBuilder().addComponents(
                     new ButtonBuilder()
                         .setCustomId(`v2_queue_${track.requester?.id || 'system'}`)
-                        .setEmoji('📜')
+                        .setEmoji('<:1000004993:1559504553844547584>')
                         .setLabel('Queue')
                         .setStyle(ButtonStyle.Secondary),
                     new ButtonBuilder()
                         .setCustomId(`v2_lyrics_${track.requester?.id || 'system'}`)
-                        .setEmoji('🎤')
+                        .setEmoji('<:1000004994:1559504556017324112>')
                         .setLabel('Lyrics')
                         .setStyle(ButtonStyle.Secondary),
                     new ButtonBuilder()
                         .setCustomId(`v2_loop_${track.requester?.id || 'system'}`)
-                        .setEmoji('🔁')
+                        .setEmoji('<:1000004995:1559504557917216878>')
                         .setLabel('Loop')
                         .setStyle(ButtonStyle.Secondary),
                     new ButtonBuilder()
                         .setCustomId(`v2_shuffle_${track.requester?.id || 'system'}`)
-                        .setEmoji('🔀')
+                        .setEmoji('<:1000004996:1559504559838339073>')
                         .setLabel('Shuffle')
                         .setStyle(ButtonStyle.Secondary),
                     new ButtonBuilder()
                         .setCustomId(`v2_stop_${track.requester?.id || 'system'}`)
-                        .setEmoji('⏹️')
+                        .setEmoji('<:1000004997:1559504562187145237>')
                         .setLabel('Stop')
                         .setStyle(ButtonStyle.Danger)
                 );
