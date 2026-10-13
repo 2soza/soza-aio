@@ -627,12 +627,12 @@ module.exports = (client) => {
                         .setCustomId(`v2_pause_${track.requester?.id || 'system'}`)
                         .setEmoji('<:1000004991:1559504549394382920>')
                         .setLabel('Pause')
-                        .setStyle(ButtonStyle.Primary),
+                        .setStyle(ButtonStyle.Secondary),
                     new ButtonBuilder()
                         .setCustomId(`v2_resume_${track.requester?.id || 'system'}`)
                         .setEmoji('<:1000004990:1559504547079127050>')
                         .setLabel('Resume')
-                        .setStyle(ButtonStyle.Success),
+                        .setStyle(ButtonStyle.Secondary),
                     new ButtonBuilder()
                         .setCustomId(`v2_skip_${track.requester?.id || 'system'}`)
                         .setEmoji('<:1000004992:1559504551608983643>')
@@ -670,7 +670,7 @@ module.exports = (client) => {
                         .setCustomId(`v2_stop_${track.requester?.id || 'system'}`)
                         .setEmoji('<:1000004997:1559504562187145237>')
                         .setLabel('Stop')
-                        .setStyle(ButtonStyle.Danger)
+                        .setStyle(ButtonStyle.Secondary)
                 );
 
                 const messageOptions = {
