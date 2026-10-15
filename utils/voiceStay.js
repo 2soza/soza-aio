@@ -2,7 +2,8 @@ const { MessageFlags, PermissionFlagsBits } = require('discord.js');
 const VoicePresence = require('../models/voicePresence/VoicePresence');
 
 const restoreJobs = new Map();
-const RESTORE_INTERVAL_MS = 30000;
+const restoreTimers = new Map();
+const RESTORE_INTERVAL_MS = 60000;
 
 function isSlashCommand(context) {
     return typeof context?.isChatInputCommand === 'function' && context.isChatInputCommand();
@@ -188,17 +189,26 @@ async function set247FromContext(context, args, client) {
 
     if (action === 'disable') {
         await VoicePresence.deleteOne({ guildId: guild.id, mode247: true });
-        return '✅ Mode 24/7 dimatikan. Bot tidak akan bergabung kembali otomatis; gunakan `/leave` atau `.leave` jika ingin langsung keluar.';
+        const pendingRestore = restoreTimers.get(guild.id);
+        if (pendingRestore) clearTimeout(pendingRestore);
+        restoreTimers.delete(guild.id);
+        return '✅ Mode 24/7 dimatikan. Bot tetap di voice saat ini; gunakan `/leave` atau `.leave` jika ingin keluar.';
     }
 
-    const voiceChannel = member.voice?.channel;
-    if (!voiceChannel) throw new Error('Masuk ke voice channel yang ingin dipakai terlebih dahulu.');
+    const player = client.riffy?.players.get(guild.id);
+    const botMember = await getBotMember(guild);
+    const currentChannelId = botMember.voice?.channelId
+        || (player?.connected ? player.voiceChannel : null);
+    if (!player?.connected || !currentChannelId || player.voiceChannel !== currentChannelId) {
+        throw new Error('Bot harus sudah berada di voice lewat `/join` atau perintah musik. `/247` hanya mengatur mode dan tidak menghubungkan bot.');
+    }
+
+    const voiceChannel = guild.channels.cache.get(currentChannelId)
+        || await guild.channels.fetch(currentChannelId).catch(() => null);
+    if (!voiceChannel?.isVoiceBased?.()) {
+        throw new Error('Voice channel bot tidak ditemukan. Gunakan `/join` untuk menyambungkan bot kembali.');
+    }
     await assertVoicePermissions(guild, voiceChannel);
-
-    const currentChannelId = guild.members.me?.voice?.channelId;
-    if (currentChannelId && currentChannelId !== voiceChannel.id) {
-        throw new Error('Bot sedang berada di voice channel lain. Pindahkan atau keluarkan bot dahulu.');
-    }
 
     await VoicePresence.findOneAndUpdate(
         { guildId: guild.id },
@@ -215,16 +225,7 @@ async function set247FromContext(context, args, client) {
         { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
-    try {
-        const result = await createVoicePlayer(client, guild, voiceChannel, context.channel.id);
-        return result.alreadyConnected
-            ? `✅ Mode 24/7 aktif. Bot akan tetap di <#${voiceChannel.id}> tanpa memutar lagu.`
-            : `✅ Mode 24/7 aktif. Bot bergabung ke <#${voiceChannel.id}> tanpa memutar lagu dan akan mencoba kembali jika terputus.`;
-    } catch (error) {
-        console.warn(`[VoiceStay] 24/7 saved; connection will retry for guild ${guild.id}:`, error.message);
-        schedule247Restore(client, guild.id, 5000);
-        return `✅ Mode 24/7 tersimpan untuk <#${voiceChannel.id}>. Bot belum berhasil masuk sekarang, tetapi akan mencoba kembali otomatis.`;
-    }
+    return `✅ Mode 24/7 aktif untuk <#${voiceChannel.id}>. Bot tetap di sana dan akan mencoba tersambung kembali jika terputus.`;
 }
 
 async function restore247Guild(client, guildId) {
@@ -266,13 +267,39 @@ async function restore247Guild(client, guildId) {
         if (
             existing?.connected &&
             existing.voiceChannel === voiceChannel.id &&
-            guild.members.me?.voice?.channelId === voiceChannel.id &&
+            (!botMember.voice?.channelId || botMember.voice.channelId === voiceChannel.id) &&
             existing.node?.connected
         ) {
             return true;
         }
 
-        if (existing) await existing.destroy().catch(() => {});
+        // A disable or channel change may happen while the restore job is
+        // fetching guild/channel data. Recheck the persisted intent before
+        // touching the active player or requesting a new voice connection.
+        const stillEnabled = await VoicePresence.exists({
+            guildId,
+            channelId: presence.channelId,
+            enabled: true,
+            mode247: true
+        });
+        if (!stillEnabled) return false;
+
+        if (existing) {
+            existing.__voiceStayRecoveryDestroy = true;
+            try {
+                await existing.destroy().catch(() => {});
+            } finally {
+                existing.__voiceStayRecoveryDestroy = false;
+            }
+        }
+
+        const stillEnabledBeforeJoin = await VoicePresence.exists({
+            guildId,
+            channelId: presence.channelId,
+            enabled: true,
+            mode247: true
+        });
+        if (!stillEnabledBeforeJoin) return false;
 
         try {
             await createVoicePlayer(client, guild, voiceChannel, textChannel.id);
@@ -307,12 +334,16 @@ async function restoreAll247(client) {
 }
 
 function schedule247Restore(client, guildId, delayMs = 3000) {
+    if (restoreTimers.has(guildId)) return;
+
     const timer = setTimeout(() => {
+        restoreTimers.delete(guildId);
         restore247Guild(client, guildId).catch(error => {
             console.error(`[VoiceStay] Scheduled reconnect failed for guild ${guildId}:`, error.message || error);
         });
     }, delayMs);
     timer.unref?.();
+    restoreTimers.set(guildId, timer);
 }
 
 function start247Monitoring(client) {
@@ -324,7 +355,9 @@ function start247Monitoring(client) {
     });
 
     client.riffy.on('playerDestroy', player => {
-        if (player?.guildId) schedule247Restore(client, player.guildId, 5000);
+        if (player?.guildId && !player.__voiceStayRecoveryDestroy) {
+            schedule247Restore(client, player.guildId, 5000);
+        }
     });
 
     client.on('voiceStateUpdate', async (oldState, newState) => {
@@ -351,6 +384,7 @@ function start247Monitoring(client) {
         }
     });
 
+    restoreAll247(client);
     const interval = setInterval(() => restoreAll247(client), RESTORE_INTERVAL_MS);
     interval.unref?.();
 }

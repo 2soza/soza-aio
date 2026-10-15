@@ -1,5 +1,6 @@
 - [Spotify playlist playback](spotify-playback.md) — use public Spotify page metadata for playback; Spotify API credentials are not required.
 - [Riffy playback start](riffy-playback.md) — start the first resolved track immediately; waiting for an entire playlist delays `trackStart` and now-playing UI.
+- [24/7 voice command behavior](voice-247-semantics.md) — `/247` only toggles persistence for an already-connected player; `/join` explicitly connects.
 - [Media provider failover](media-provider-failover.md) — mediacord uses several upstream providers; GIF commands need a fallback when one provider is unavailable.
 - [Birthday date timezone](birthday-age-timezone.md) — calculate age and days-until in the birthday owner's timezone, not UTC.
 - [Gemini API quota vs key status](gemini-api-quota.md) — an active stored key can still be unavailable because Google returns provider-level 429/quota limits.

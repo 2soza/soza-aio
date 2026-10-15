@@ -5,11 +5,11 @@ module.exports = {
     category: 'lavalink',
     data: new SlashCommandBuilder()
         .setName('247')
-        .setDescription('Keep the bot in your voice channel without playing music.')
+        .setDescription('Enable or disable 24/7 mode for the bot’s current voice channel.')
         .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
         .addStringOption(option =>
             option.setName('action')
-                .setDescription('Enable or disable always-on voice mode.')
+                .setDescription('Enable or disable automatic voice reconnection.')
                 .setRequired(true)
                 .addChoices(
                     { name: 'Enable', value: 'enable' },
