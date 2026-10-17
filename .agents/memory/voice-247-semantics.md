@@ -7,4 +7,4 @@ description: The intended separation between explicit voice joining and always-o
 
 **Why:** The user explicitly asked that `/247` behave as an enable/disable control rather than a join action, following the behavior they observed in Eleven.
 
-**How to apply:** Keep user-triggered joining in `/join` and 24/7 state changes in `/247`; permit automatic reconnect only as background behavior while the saved mode is enabled.
+**How to apply:** Keep `/join` and 24/7 recovery on Discord voice connections independent of Lavalink. Hand off that connection to Riffy only when music starts. Railway process restarts still interrupt the live process; restore the saved channel after the bot starts again.

@@ -23,6 +23,10 @@ const { getSpotifyTrackQueries, parseSpotifyUrl } = require('../../utils/spotify
 const { maximizeVoiceChannelBitrate } = require('../../utils/voiceQuality');
 const { setStablePlayerVolume } = require('../../utils/musicAudio');
 const {
+    joinFromContext,
+    releaseVoiceOnlyConnection
+} = require('../../utils/voiceStay');
+const {
     getRiffyQueuePosition,
     startRiffyPlayerIfIdle
 } = require('../../utils/riffyPlayback');
@@ -244,9 +248,28 @@ module.exports = {
       
             const getOrCreatePlayer = async () => {
                 let player = client.riffy.players.get(guildId);
+
+                if (player && !player.connected) {
+                    player.__voiceStayRecoveryDestroy = true;
+                    try {
+                        await player.destroy().catch(() => {});
+                    } finally {
+                        player.__voiceStayRecoveryDestroy = false;
+                    }
+                    player = null;
+                }
                 
                 if (!player) {
+                    let releasedVoiceOnlyConnection = false;
                     try {
+                        const hasConnectedLavalinkNode = [
+                            ...(client.riffy?.nodeMap?.values() || [])
+                        ].some(node => node?.connected);
+                        if (!hasConnectedLavalinkNode) {
+                            throw new Error('No healthy Lavalink nodes are available.');
+                        }
+
+                        releasedVoiceOnlyConnection = releaseVoiceOnlyConnection(client, guildId);
                         player = await client.riffy.createConnection({
                             guildId,
                             voiceChannel: channel.id,
@@ -254,6 +277,11 @@ module.exports = {
                             deaf: true
                         });
                     } catch (error) {
+                        if (releasedVoiceOnlyConnection) {
+                            await joinFromContext(interaction, client).catch(restoreError => {
+                                console.warn('[MUSIC] Could not restore voice-only connection after playback setup failed:', restoreError.message);
+                            });
+                        }
                         console.error('Error creating player:', error);
                         const hasConnectedLavalinkNode = [
                             ...(client.riffy?.nodeMap?.values() || [])

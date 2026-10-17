@@ -1,4 +1,5 @@
 const { MessageFlags, PermissionFlagsBits } = require('discord.js');
+const { entersState, joinVoiceChannel, VoiceConnectionStatus } = require('@discordjs/voice');
 const VoicePresence = require('../models/voicePresence/VoicePresence');
 
 const restoreJobs = new Map();
@@ -58,64 +59,98 @@ function hasManageGuildPermission(context, member) {
     );
 }
 
-function hasConnectedLavalinkNode(client) {
-    return [...(client.riffy?.nodeMap?.values() || [])].some(node => node?.connected);
-}
-
 async function getBotMember(guild) {
     return guild.members.me || guild.members.fetchMe();
 }
 
-async function assertVoicePermissions(guild, voiceChannel) {
+function getVoiceOnlyConnections(client) {
+    if (!(client.__voiceOnlyConnections instanceof Map)) {
+        client.__voiceOnlyConnections = new Map();
+    }
+    return client.__voiceOnlyConnections;
+}
+
+function getVoiceOnlyConnection(client, guildId) {
+    return getVoiceOnlyConnections(client).get(guildId) || null;
+}
+
+async function assertVoiceConnectPermission(guild, voiceChannel) {
     const botMember = await getBotMember(guild);
     const permissions = voiceChannel.permissionsFor(botMember);
-    if (
-        !permissions?.has(PermissionFlagsBits.Connect) ||
-        !permissions.has(PermissionFlagsBits.Speak)
-    ) {
-        throw new Error('Bot perlu izin Connect dan Speak di voice channel tersebut.');
+    if (!permissions?.has(PermissionFlagsBits.Connect)) {
+        throw new Error('Bot perlu izin Connect di voice channel tersebut.');
     }
     return botMember;
 }
 
-async function createVoicePlayer(client, guild, voiceChannel, textChannelId) {
-    if (!client.riffy) {
-        throw new Error('Sistem musik Lavalink belum siap.');
-    }
-    if (!hasConnectedLavalinkNode(client)) {
-        throw new Error('Tidak ada node Lavalink yang sedang terhubung.');
-    }
-
-    const botMember = await assertVoicePermissions(guild, voiceChannel);
-    const existing = client.riffy.players.get(guild.id);
+async function connectVoiceOnly(client, guild, voiceChannel) {
+    const botMember = await assertVoiceConnectPermission(guild, voiceChannel);
+    const existing = client.riffy?.players.get(guild.id);
     const currentBotChannelId = botMember.voice.channelId;
+
     if (currentBotChannelId && currentBotChannelId !== voiceChannel.id) {
         throw new Error('Bot sedang berada di voice channel lain. Minta bot leave dahulu.');
     }
 
-    if (existing?.connected && currentBotChannelId) {
-        if (currentBotChannelId === voiceChannel.id && existing.voiceChannel === voiceChannel.id) {
-            return { player: existing, alreadyConnected: true };
-        }
-        throw new Error('Bot sedang berada di voice channel lain. Minta bot leave dahulu.');
+    if (existing?.connected && existing.voiceChannel === voiceChannel.id) {
+        return { alreadyConnected: true };
+    }
+
+    const connections = getVoiceOnlyConnections(client);
+    const currentConnection = connections.get(guild.id);
+    if (
+        currentConnection?.state.status === VoiceConnectionStatus.Ready &&
+        currentConnection.joinConfig.channelId === voiceChannel.id
+    ) {
+        return { alreadyConnected: true };
+    }
+
+    if (currentConnection) {
+        connections.delete(guild.id);
+        currentConnection.destroy();
     }
 
     if (existing) {
-        await existing.destroy().catch(() => {});
+        existing.__voiceStayRecoveryDestroy = true;
+        try {
+            await existing.destroy().catch(() => {});
+        } finally {
+            existing.__voiceStayRecoveryDestroy = false;
+        }
     }
 
+    let connection;
     try {
-        const player = await client.riffy.createConnection({
+        connection = joinVoiceChannel({
+            channelId: voiceChannel.id,
             guildId: guild.id,
-            voiceChannel: voiceChannel.id,
-            textChannel: textChannelId,
-            deaf: true
+            adapterCreator: guild.voiceAdapterCreator,
+            selfDeaf: true
         });
-        return { player, alreadyConnected: false };
+        connections.set(guild.id, connection);
+        connection.on('error', error => {
+            console.error(`[VoiceStay] Discord voice connection error in guild ${guild.id}:`, error.message || error);
+        });
+        await entersState(connection, VoiceConnectionStatus.Ready, 30000);
+        return { connection, alreadyConnected: false };
     } catch (error) {
+        if (connection && connections.get(guild.id) === connection) {
+            connections.delete(guild.id);
+        }
+        connection?.destroy();
         console.error(`[VoiceStay] Could not join voice in guild ${guild.id}:`, error?.message || error);
-        throw new Error('Gagal terhubung ke voice. Periksa node Lavalink dan izin Connect/Speak bot.');
+        throw new Error('Gagal terhubung ke voice. Periksa koneksi Discord dan izin Connect bot.');
     }
+}
+
+function releaseVoiceOnlyConnection(client, guildId) {
+    const connections = getVoiceOnlyConnections(client);
+    const connection = connections.get(guildId);
+    if (!connection) return false;
+
+    connections.delete(guildId);
+    connection.destroy();
+    return true;
 }
 
 async function joinFromContext(context, client) {
@@ -135,7 +170,7 @@ async function joinFromContext(context, client) {
         throw new Error(`Mode 24/7 sedang dikunci ke <#${pinnedPresence.channelId}>.`);
     }
 
-    const result = await createVoicePlayer(client, guild, voiceChannel, context.channel.id);
+    const result = await connectVoiceOnly(client, guild, voiceChannel);
     return result.alreadyConnected
         ? `✅ Bot sudah berada di <#${voiceChannel.id}>. Tidak ada lagu yang diputar.`
         : `✅ Bot bergabung ke <#${voiceChannel.id}> tanpa memutar lagu.`;
@@ -147,7 +182,9 @@ async function leaveFromContext(context, client) {
     if (!guild || !member) throw new Error('Perintah ini hanya bisa dipakai di server.');
 
     const player = client.riffy?.players.get(guild.id);
+    const voiceOnlyConnection = getVoiceOnlyConnection(client, guild.id);
     const botVoiceChannelId = guild.members.me?.voice?.channelId
+        || voiceOnlyConnection?.joinConfig?.channelId
         || (player?.connected ? player.voiceChannel : null);
     if (!botVoiceChannelId) throw new Error('Bot tidak sedang berada di voice channel.');
 
@@ -159,13 +196,15 @@ async function leaveFromContext(context, client) {
         throw new Error('Masuk ke voice channel bot terlebih dahulu untuk menggunakan leave.');
     }
 
-    if (player) await player.destroy();
+    if (player) await player.destroy().catch(() => {});
+    releaseVoiceOnlyConnection(client, guild.id);
 
     const keepAlive = await VoicePresence.exists({
         guildId: guild.id,
         enabled: true,
         mode247: true
     });
+    if (keepAlive) schedule247Restore(client, guild.id, 5000);
     return keepAlive
         ? '👋 Bot keluar sebentar. Mode 24/7 masih aktif, jadi bot akan mencoba bergabung kembali. Gunakan `/247 action:disable` atau `.247 disable` untuk mematikan mode 24/7.'
         : '👋 Bot sudah keluar dari voice channel.';
@@ -196,10 +235,19 @@ async function set247FromContext(context, args, client) {
     }
 
     const player = client.riffy?.players.get(guild.id);
+    const voiceOnlyConnection = getVoiceOnlyConnection(client, guild.id);
     const botMember = await getBotMember(guild);
     const currentChannelId = botMember.voice?.channelId
+        || (voiceOnlyConnection?.state.status === VoiceConnectionStatus.Ready
+            ? voiceOnlyConnection.joinConfig.channelId
+            : null)
         || (player?.connected ? player.voiceChannel : null);
-    if (!player?.connected || !currentChannelId || player.voiceChannel !== currentChannelId) {
+    const isConnected = Boolean(
+        (voiceOnlyConnection?.state.status === VoiceConnectionStatus.Ready &&
+            voiceOnlyConnection.joinConfig.channelId === currentChannelId) ||
+        (player?.connected && player.voiceChannel === currentChannelId)
+    );
+    if (!isConnected || !currentChannelId) {
         throw new Error('Bot harus sudah berada di voice lewat `/join` atau perintah musik. `/247` hanya mengatur mode dan tidak menghubungkan bot.');
     }
 
@@ -208,7 +256,7 @@ async function set247FromContext(context, args, client) {
     if (!voiceChannel?.isVoiceBased?.()) {
         throw new Error('Voice channel bot tidak ditemukan. Gunakan `/join` untuk menyambungkan bot kembali.');
     }
-    await assertVoicePermissions(guild, voiceChannel);
+    await assertVoiceConnectPermission(guild, voiceChannel);
 
     await VoicePresence.findOneAndUpdate(
         { guildId: guild.id },
@@ -237,7 +285,7 @@ async function restore247Guild(client, guildId) {
             enabled: true,
             mode247: true
         }).lean();
-        if (!presence || !client.riffy || !hasConnectedLavalinkNode(client)) return false;
+        if (!presence || !client.user) return false;
 
         const guild = client.guilds.cache.get(guildId)
             || await client.guilds.fetch(guildId).catch(() => null);
@@ -252,25 +300,21 @@ async function restore247Guild(client, guildId) {
 
         const botMember = await getBotMember(guild).catch(() => null);
         if (!botMember) return false;
-        const textChannel = guild.channels.cache.get(presence.textChannelId)
-            || guild.systemChannel
-            || guild.channels.cache.find(channel =>
-                channel.isTextBased?.() &&
-                channel.permissionsFor(botMember)?.has(PermissionFlagsBits.SendMessages)
-            );
-        if (!textChannel) {
-            console.warn(`[VoiceStay] No usable text channel for 24/7 recovery in guild ${guildId}.`);
-            return false;
-        }
-
-        const existing = client.riffy.players.get(guildId);
+        const existing = client.riffy?.players.get(guildId);
+        const voiceOnlyConnection = getVoiceOnlyConnection(client, guildId);
         if (
-            existing?.connected &&
-            existing.voiceChannel === voiceChannel.id &&
-            (!botMember.voice?.channelId || botMember.voice.channelId === voiceChannel.id) &&
-            existing.node?.connected
+            voiceOnlyConnection?.state.status === VoiceConnectionStatus.Ready &&
+            voiceOnlyConnection.joinConfig.channelId === voiceChannel.id
         ) {
             return true;
+        }
+        if (existing?.connected && existing.voiceChannel === voiceChannel.id) return true;
+        if (
+            (botMember.voice?.channelId && botMember.voice.channelId !== voiceChannel.id) ||
+            (existing?.connected && existing.voiceChannel !== voiceChannel.id)
+        ) {
+            console.warn(`[VoiceStay] Bot is already connected to a different voice channel in guild ${guildId}.`);
+            return false;
         }
 
         // A disable or channel change may happen while the restore job is
@@ -302,7 +346,7 @@ async function restore247Guild(client, guildId) {
         if (!stillEnabledBeforeJoin) return false;
 
         try {
-            await createVoicePlayer(client, guild, voiceChannel, textChannel.id);
+            await connectVoiceOnly(client, guild, voiceChannel);
             console.log(`[VoiceStay] Restored 24/7 voice connection for guild ${guildId}.`);
             return true;
         } catch (error) {
@@ -326,7 +370,8 @@ async function restoreAll247(client) {
             mode247: true
         }).select('guildId').lean();
         for (const presence of presences) {
-            await restore247Guild(client, presence.guildId);
+            const restored = await restore247Guild(client, presence.guildId);
+            if (!restored) schedule247Restore(client, presence.guildId, 5000);
         }
     } catch (error) {
         console.error('[VoiceStay] Could not load saved 24/7 sessions:', error.message || error);
@@ -347,14 +392,14 @@ function schedule247Restore(client, guildId, delayMs = 3000) {
 }
 
 function start247Monitoring(client) {
-    if (client.__voiceStayMonitoring || !client.riffy) return;
+    if (client.__voiceStayMonitoring) return;
     client.__voiceStayMonitoring = true;
 
-    client.riffy.on('nodeConnect', () => {
+    client.riffy?.on('nodeConnect', () => {
         restoreAll247(client);
     });
 
-    client.riffy.on('playerDestroy', player => {
+    client.riffy?.on('playerDestroy', player => {
         if (player?.guildId && !player.__voiceStayRecoveryDestroy) {
             schedule247Restore(client, player.guildId, 5000);
         }
@@ -394,6 +439,7 @@ module.exports = {
     joinFromContext,
     leaveFromContext,
     set247FromContext,
+    releaseVoiceOnlyConnection,
     start247Monitoring,
     restoreAll247,
     schedule247Restore
