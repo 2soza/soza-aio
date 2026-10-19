@@ -81,31 +81,39 @@ function loadNodes() {
         try {
             const parsed = JSON.parse(configuredNodes);
             const normalized = normalizeNodes(parsed);
-            if (normalized.length > 0) return normalized;
+            if (normalized.length > 0) {
+                return { nodes: normalized, source: 'LAVALINK_NODES_JSON' };
+            }
             throw new Error('No valid node entries were found');
         } catch (error) {
             throw new Error(`Invalid LAVALINK_NODES_JSON: ${error.message}`);
         }
     }
 
-    const nodesFile = process.env.LAVALINK_NODES_FILE?.trim()
-        || path.join(__dirname, 'lavalink', 'nodes.json');
+    const configuredNodesFile = process.env.LAVALINK_NODES_FILE?.trim();
+    const nodesFile = configuredNodesFile || path.join(__dirname, 'lavalink', 'nodes.json');
 
     try {
         const parsed = JSON.parse(fs.readFileSync(nodesFile, 'utf8'));
         const normalized = normalizeNodes(parsed);
-        if (normalized.length > 0) return normalized;
+        if (normalized.length > 0) {
+            return {
+                nodes: normalized,
+                source: configuredNodesFile ? 'LAVALINK_NODES_FILE' : 'lavalink/nodes.json'
+            };
+        }
     } catch (error) {
         console.warn(`[Lavalink] Could not load ${nodesFile}: ${error.message}`);
     }
 
-    return [legacyNode];
+    return { nodes: [legacyNode], source: 'built-in legacy fallback' };
 }
 
-const nodes = loadNodes();
+const { nodes, source: nodeSource } = loadNodes();
 
 module.exports = {
     enabled: true,
+    nodeSource,
     lavalink: {
         nodes,
         defaultSearchPlatform: process.env.LAVALINK_SEARCH_PLATFORM || "ytsearch",

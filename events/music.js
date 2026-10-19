@@ -292,6 +292,12 @@ module.exports = (client) => {
                 secure: lavalinkConfig.lavalink.secure
             }
         ];
+        console.log(`[V2 LAVALINK] Node configuration source: ${lavalinkConfig.nodeSource || 'unknown'}.`);
+        if (lavalinkConfig.nodeSource !== 'LAVALINK_NODES_JSON') {
+            console.warn(
+                `[V2 LAVALINK] LAVALINK_NODES_JSON was not used by this process; loaded nodes from ${lavalinkConfig.nodeSource || 'an unknown source'}. Check the active Railway service/environment variables and redeploy if you recently changed them.`
+            );
+        }
         console.log(
             `[V2 LAVALINK] Loaded ${nodes.length} node configuration(s): ` +
             nodes.map(node => `${node.name} (${node.host}:${node.port}, secure=${Boolean(node.secure)})`).join(' | ')
