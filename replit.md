@@ -17,6 +17,8 @@ If using the public nodes from the Akeno repository, copy its current values exa
 
 ## Start
 
+Use Node.js 22.12.0 or newer; the current Discord voice library needs it for DAVE-compatible voice connections.
+
 Install the locked dependencies and start the bot:
 
 ```sh

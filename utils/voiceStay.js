@@ -76,6 +76,10 @@ function getVoiceOnlyConnection(client, guildId) {
 
 async function assertVoiceConnectPermission(guild, voiceChannel) {
     const botMember = await getBotMember(guild);
+    if (botMember.permissions?.has(PermissionFlagsBits.Administrator)) {
+        return botMember;
+    }
+
     const permissions = voiceChannel.permissionsFor(botMember);
     const missingPermissions = [
         [PermissionFlagsBits.ViewChannel, 'View Channel'],
@@ -127,10 +131,35 @@ async function connectVoiceOnly(client, guild, voiceChannel) {
     }
 
     let connection;
+    let rawPacketListener;
+    let stateChangeListener;
+    const handshakeEvents = {
+        botVoiceState: false,
+        voiceServer: false
+    };
+
     try {
         if (!guild.voiceAdapterCreator) {
             throw new Error('Discord voice adapter tidak tersedia untuk server ini.');
         }
+
+        rawPacketListener = packet => {
+            if (packet?.d?.guild_id !== guild.id) return;
+
+            if (packet.t === 'VOICE_SERVER_UPDATE') {
+                handshakeEvents.voiceServer = true;
+                console.log(`[VoiceStay] Discord sent a voice-server update for guild ${guild.id}.`);
+            } else if (
+                packet.t === 'VOICE_STATE_UPDATE' &&
+                packet.d.user_id === client.user?.id
+            ) {
+                handshakeEvents.botVoiceState = true;
+                console.log(
+                    `[VoiceStay] Discord sent a bot voice-state update for guild ${guild.id} (${packet.d.channel_id ? 'channel assigned' : 'disconnected'}).`
+                );
+            }
+        };
+        client.on('raw', rawPacketListener);
 
         connection = joinVoiceChannel({
             channelId: voiceChannel.id,
@@ -139,6 +168,12 @@ async function connectVoiceOnly(client, guild, voiceChannel) {
             selfDeaf: true
         });
         connections.set(guild.id, connection);
+        stateChangeListener = (oldState, newState) => {
+            console.log(
+                `[VoiceStay] Voice connection state in guild ${guild.id}: ${oldState.status} -> ${newState.status}.`
+            );
+        };
+        connection.on('stateChange', stateChangeListener);
         connection.on('error', error => {
             console.error(`[VoiceStay] Discord voice connection error in guild ${guild.id}:`, error.message || error);
         });
@@ -154,11 +189,21 @@ async function connectVoiceOnly(client, guild, voiceChannel) {
             name: error?.name,
             code: error?.code,
             message: error?.message || String(error),
-            connectionStatus
+            connectionStatus,
+            ...handshakeEvents
         });
-        throw new Error(
-            'Gagal terhubung ke voice Discord. Pastikan bot memiliki izin View Channel dan Connect, lalu cek Railway Console untuk detail kegagalan.'
-        );
+        const userMessage = (
+            error?.name === 'AbortError' &&
+            connectionStatus === VoiceConnectionStatus.Signalling
+        )
+            ? 'Discord belum menyelesaikan handshake voice dalam 30 detik (status Signalling). Pemeriksaan izin sudah lolos; cek Railway Console untuk event voice-state dan voice-server.'
+            : `Koneksi voice Discord gagal sebelum siap (status ${connectionStatus}). Cek Railway Console untuk detail kegagalan.`;
+        throw new Error(userMessage);
+    } finally {
+        if (rawPacketListener) client.off('raw', rawPacketListener);
+        if (connection && stateChangeListener) {
+            connection.off('stateChange', stateChangeListener);
+        }
     }
 }
 
