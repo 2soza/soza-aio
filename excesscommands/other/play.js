@@ -91,6 +91,23 @@ function isNodeStruggling(stats) {
     return deficit > 1000 || systemLoad > 0.95;
 }
 
+function logNodeHealthSnapshot(client, reason) {
+    const nodes = [...(client.riffy?.nodeMap?.values() || [])];
+    if (!nodes.length) {
+        console.warn(`[RIFFY] ${reason}: Riffy has no configured nodes in nodeMap.`);
+        return;
+    }
+
+    const summary = nodes.map(node => {
+        const cachedHealth = nodeHealthCache.get(node);
+        const state = node.connected ? 'connected' : 'disconnected';
+        const failure = cachedHealth?.error ? `; last health error: ${cachedHealth.error}` : '';
+        return `${node.name} (${node.host}:${node.port}, ${state}${failure})`;
+    });
+
+    console.warn(`[RIFFY] ${reason}: ${summary.join(' | ')}`);
+}
+
 async function checkNodeHealth(node) {
     if (!node?.connected || !node.rest?.getStats) return false;
 
@@ -148,6 +165,7 @@ async function waitForHealthyNode(client, timeoutMs = 15000, excludedNodes = new
         await new Promise(resolve => setTimeout(resolve, 250));
     }
 
+    logNodeHealthSnapshot(client, 'No healthy Lavalink node was found');
     throw new Error('No healthy Lavalink nodes are available');
 }
 
@@ -168,7 +186,7 @@ function getPlaybackFailureMessage(error) {
     }
 
     if (message.includes('no healthy lavalink nodes')) {
-        return 'Tidak ada server Lavalink yang merespons dengan sehat.';
+        return 'Tidak ada node Lavalink yang merespons dengan sehat. Periksa status node di Railway Console dan pastikan alamat serta password node masih berlaku.';
     }
 
     if (message.includes('track search')) {
@@ -209,10 +227,11 @@ module.exports = {
 
         const permissions = voiceChannel.permissionsFor(client.user);
         if (
+            !permissions?.has(PermissionFlagsBits.ViewChannel) ||
             !permissions?.has(PermissionFlagsBits.Connect) ||
             !permissions.has(PermissionFlagsBits.Speak)
         ) {
-            return temporaryReply(message, '❌ I need **Connect** and **Speak** permission in that voice channel.');
+            return temporaryReply(message, '❌ I need **View Channel**, **Connect**, and **Speak** permission in that voice channel.');
         }
 
         if (!client.riffy) {

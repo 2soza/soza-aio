@@ -11,7 +11,9 @@ The bot exits with an explicit error if either value is missing. Other API keys 
 
 ## Lavalink music nodes
 
-The music player needs a reachable Lavalink server. Voice-only `/join` and saved `/247` presence use Discord voice directly and do not require Lavalink. To override the imported node list, add `LAVALINK_NODES_JSON` in Replit Secrets as a JSON array. Both Akeno-style entries (`url`, `auth`, `secure`) and Riffy-style entries (`host`, `port`, `password`, `secure`) are accepted. Keep node authentication in Secrets rather than committing it to a file. Public/shared nodes can be unreliable and may have their own usage limits.
+The music player needs a reachable Lavalink server. Voice-only `/join` and saved `/247` presence use Discord voice directly and do not require Lavalink. To override the imported node list, add `LAVALINK_NODES_JSON` as a JSON array. Both Akeno-style entries (`url`, `auth`, `secure`) and Riffy-style entries (`host`, `port`, `password`, `secure`) are accepted; the app converts Akeno's `url`/`auth` fields to Riffy's `host`/`password` fields.
+
+If using the public nodes from the Akeno repository, copy its current values exactly. Its documented primary host is `lavalinkv4.serenetia.com:443` (including the `v` after `lavalink`). Keep node authentication in Railway Variables or Replit Secrets, not in a committed file or chat. Public/shared nodes can be unavailable or have their credentials changed. The bot logs configured node hosts and connection/probe results without logging passwords. If music reports no healthy node, inspect Railway Console for `[V2 LAVALINK]` and `[RIFFY]` messages; `/join` does not depend on Lavalink.
 
 ## Start
 

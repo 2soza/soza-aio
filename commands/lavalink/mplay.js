@@ -226,11 +226,15 @@ module.exports = {
                 
              
                 const permissions = channel.permissionsFor(client.user);
-                if (!permissions.has(PermissionFlagsBits.Connect) || !permissions.has(PermissionFlagsBits.Speak)) {
+                if (
+                    !permissions?.has(PermissionFlagsBits.ViewChannel) ||
+                    !permissions.has(PermissionFlagsBits.Connect) ||
+                    !permissions.has(PermissionFlagsBits.Speak)
+                ) {
                     const errorContainer = new ContainerBuilder()
                         .setAccentColor(0xff4757)
                         .addTextDisplayComponents(
-                            textDisplay => textDisplay.setContent('**❌ INSUFFICIENT PERMISSIONS**\nI need permission to connect and speak in the voice channel.\n\nPlease check my permissions and try again.')
+                            textDisplay => textDisplay.setContent('**❌ INSUFFICIENT PERMISSIONS**\nI need View Channel, Connect, and Speak permissions in the voice channel.\n\nPlease check my permissions and try again.')
                         );
                     
                     const reply = await interaction.editReply({ 

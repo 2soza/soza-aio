@@ -77,8 +77,15 @@ function getVoiceOnlyConnection(client, guildId) {
 async function assertVoiceConnectPermission(guild, voiceChannel) {
     const botMember = await getBotMember(guild);
     const permissions = voiceChannel.permissionsFor(botMember);
-    if (!permissions?.has(PermissionFlagsBits.Connect)) {
-        throw new Error('Bot perlu izin Connect di voice channel tersebut.');
+    const missingPermissions = [
+        [PermissionFlagsBits.ViewChannel, 'View Channel'],
+        [PermissionFlagsBits.Connect, 'Connect']
+    ]
+        .filter(([permission]) => !permissions?.has(permission))
+        .map(([, name]) => name);
+
+    if (missingPermissions.length) {
+        throw new Error(`Bot perlu izin ${missingPermissions.join(' dan ')} di voice channel tersebut.`);
     }
     return botMember;
 }
@@ -121,6 +128,10 @@ async function connectVoiceOnly(client, guild, voiceChannel) {
 
     let connection;
     try {
+        if (!guild.voiceAdapterCreator) {
+            throw new Error('Discord voice adapter tidak tersedia untuk server ini.');
+        }
+
         connection = joinVoiceChannel({
             channelId: voiceChannel.id,
             guildId: guild.id,
@@ -134,12 +145,20 @@ async function connectVoiceOnly(client, guild, voiceChannel) {
         await entersState(connection, VoiceConnectionStatus.Ready, 30000);
         return { connection, alreadyConnected: false };
     } catch (error) {
+        const connectionStatus = connection?.state?.status || 'not-created';
         if (connection && connections.get(guild.id) === connection) {
             connections.delete(guild.id);
         }
         connection?.destroy();
-        console.error(`[VoiceStay] Could not join voice in guild ${guild.id}:`, error?.message || error);
-        throw new Error('Gagal terhubung ke voice. Periksa koneksi Discord dan izin Connect bot.');
+        console.error(`[VoiceStay] Could not join voice in guild ${guild.id}:`, {
+            name: error?.name,
+            code: error?.code,
+            message: error?.message || String(error),
+            connectionStatus
+        });
+        throw new Error(
+            'Gagal terhubung ke voice Discord. Pastikan bot memiliki izin View Channel dan Connect, lalu cek Railway Console untuk detail kegagalan.'
+        );
     }
 }
 

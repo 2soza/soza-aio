@@ -292,6 +292,10 @@ module.exports = (client) => {
                 secure: lavalinkConfig.lavalink.secure
             }
         ];
+        console.log(
+            `[V2 LAVALINK] Loaded ${nodes.length} node configuration(s): ` +
+            nodes.map(node => `${node.name} (${node.host}:${node.port}, secure=${Boolean(node.secure)})`).join(' | ')
+        );
 
         client.riffy = new Riffy(client, nodes, {
             send: (payload) => {
@@ -426,7 +430,10 @@ module.exports = (client) => {
         });
 
         client.riffy.on('nodeError', (node, error) => {
-            console.error(`\x1b[31m[ V2 LAVALINK ]\x1b[0m Node \x1b[32m${node.name}\x1b[0m error: \x1b[33m${error.message}\x1b[0m`);
+            console.error(
+                `\x1b[31m[ V2 LAVALINK ]\x1b[0m Node \x1b[32m${node.name} (${node.host}:${node.port})\x1b[0m error:`,
+                { code: error?.code, message: error?.message || String(error) }
+            );
         });
 
         client.riffy.on('playerMigrated', (player, oldNode, newNode) => {
@@ -2524,25 +2531,27 @@ module.exports = (client) => {
             } catch (error) {
                 console.error('\x1b[31m[ V2 LAVALINK ]\x1b[0m Initialization failed:', error.message);
                 console.error('\x1b[31m[ V2 LAVALINK ]\x1b[0m Stack:', error.stack);
-                
-              
-                console.log('\x1b[33m[ V2 LAVALINK ]\x1b[0m Attempting to verify Lavalink server...');
-                try {
-                    const testNode = nodes[0];
-                    const testUrl = `http${testNode.secure ? 's' : ''}://${testNode.host}:${testNode.port}/version`;
-                    console.log('\x1b[34m[ V2 LAVALINK ]\x1b[0m Testing:', testUrl);
-                    
-                    const response = await axios.get(testUrl, {
-                        headers: { 'Authorization': testNode.password },
-                        timeout: 5000
-                    });
-                    
-                    console.log('\x1b[32m[ V2 LAVALINK ]\x1b[0m Server is reachable. Version:', response.data);
-                    console.log('\x1b[33m[ V2 LAVALINK ]\x1b[0m Server is up but connection failed. Check Riffy compatibility.');
-                } catch (testError) {
-                    console.error('\x1b[31m[ V2 LAVALINK ]\x1b[0m Server not reachable:', testError.message);
-                    console.error('\x1b[31m[ V2 LAVALINK ]\x1b[0m Check your lavalink config and ensure the server is running.');
-                }
+
+                console.log('\x1b[33m[ V2 LAVALINK ]\x1b[0m Checking every configured node over REST (credentials are not logged)...');
+                await Promise.all(nodes.map(async node => {
+                    const testUrl = `http${node.secure ? 's' : ''}://${node.host}:${node.port}/version`;
+                    try {
+                        const response = await axios.get(testUrl, {
+                            headers: { Authorization: node.password },
+                            timeout: 5000
+                        });
+                        console.log(
+                            `\x1b[32m[ V2 LAVALINK ]\x1b[0m REST probe succeeded for ${node.name} (${node.host}:${node.port}): HTTP ${response.status}.`
+                        );
+                    } catch (testError) {
+                        const failure = testError.response?.status
+                            ? `HTTP ${testError.response.status}`
+                            : `${testError.code || testError.name || 'Error'}: ${testError.message}`;
+                        console.error(
+                            `\x1b[31m[ V2 LAVALINK ]\x1b[0m REST probe failed for ${node.name} (${node.host}:${node.port}): ${failure}.`
+                        );
+                    }
+                }));
             }
         };
 
