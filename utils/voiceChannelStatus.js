@@ -34,8 +34,16 @@ async function setVoiceChannelStatus(client, guildId, status, channelId = null) 
     }
 }
 
+function formatTrackStatus(info) {
+    const title = typeof info?.title === 'string' ? info.title.trim() : '';
+    const author = typeof info?.author === 'string' ? info.author.trim() : '';
+    if (!title) return IDLE_VOICE_STATUS;
+    return author ? `${title} - ${author}` : title;
+}
+
 module.exports = {
     IDLE_VOICE_STATUS,
     VOICE_STATUS_EMOJI,
+    formatTrackStatus,
     setVoiceChannelStatus
 };
