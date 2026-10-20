@@ -400,6 +400,12 @@ module.exports = (client) => {
                         // delay does not interrupt otherwise healthy music.
                         if (failures >= 2) {
                             nodeWatchdog.lastFailures.delete(key);
+                            if (node.ws?.readyState === 1) {
+                                console.warn(
+                                    `[V2 LAVALINK] REST stats timed out twice for ${key}, but its websocket is still open; keeping it connected to avoid interrupting active playback.`
+                                );
+                                continue;
+                            }
                             restartStaleNode(node);
                         }
                     }

@@ -18,6 +18,7 @@ const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags, ContainerBuilder
 const musicIcons = require('../../UI/icons/musicicons');
 const cmdIcons = require('../../UI/icons/commandicons');
 const { autoplayCollection } = require('../../mongodb');
+const { setRiffyAutoplayEnabled } = require('../../utils/riffyAutoplay');
 const { playlistCollection } = require('../../mongodb');
 const { getSpotifyTrackQueries, parseSpotifyUrl } = require('../../utils/spotifyTracks');
 const { maximizeVoiceChannelBitrate } = require('../../utils/voiceQuality');
@@ -1611,8 +1612,8 @@ module.exports = {
                         
                        
                         const player = client.riffy.players.get(guildId);
-                        if (player) {
-                            player.autoplay = enable;
+                        if (player && !setRiffyAutoplayEnabled(player, enable)) {
+                            console.warn(`[RIFFY] Could not update autoplay state for guild ${guildId}: player.autoplay is unavailable.`);
                         }
                     } catch (error) {
                         console.error('Error setting autoplay:', error);
