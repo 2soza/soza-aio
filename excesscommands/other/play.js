@@ -5,6 +5,7 @@ const {
     getRiffyQueuePosition,
     startRiffyPlayerAndWaitForStart
 } = require('../../utils/riffyPlayback');
+const { releaseVoiceOnlyConnection } = require('../../utils/voiceStay');
 
 function temporaryReply(message, content, timeout = 6000) {
     return message.reply(content).then(reply => {
@@ -193,6 +194,10 @@ function getPlaybackFailureMessage(error) {
         return 'Server Lavalink tidak merespons pencarian lagu.';
     }
 
+    if (message.includes('player connection is not initiated')) {
+        return 'Koneksi player musik ke voice belum siap. `.join` hanya menghubungkan bot; gunakan `.play <lagu>` untuk memulai musik, lalu coba lagi setelah beberapa detik.';
+    }
+
     if (message.includes('lavalink playback')) {
         return 'Server Lavalink tidak merespons saat memulai audio.';
     }
@@ -256,7 +261,11 @@ module.exports = {
             }
         }
 
-            const createPlayer = (node) => withTimeout(
+            const createPlayer = (node) => {
+                // Hand off a voice-only /join connection before Riffy
+                // establishes its own player connection for playback.
+                releaseVoiceOnlyConnection(client, guildId);
+                return withTimeout(
                     client.riffy.createPlayer(node, {
                         guildId,
                         voiceChannel: voiceChannel.id,
@@ -266,6 +275,7 @@ module.exports = {
                     15000,
                     'Lavalink voice connection'
                 );
+            };
 
             const resolveTrack = (node, searchQuery = query) => withNodeResolutionLock(async () => {
                 return withTimeout(
@@ -302,6 +312,7 @@ module.exports = {
                 const tracks = [];
                 let lastTrackError = null;
                 let startedPlayback = false;
+                const playbackRequired = !player.paused && !(player.current && player.playing);
                 let firstQueuePosition = null;
                 const addTrackAndStart = async (track) => {
                     track.requester = {
@@ -364,11 +375,14 @@ module.exports = {
                         }
                     } catch (error) {
                         lastTrackError = error;
-                        console.warn(`[RIFFY] Could not resolve "${searchQuery}":`, error.message);
+                        console.warn(`[RIFFY] Could not search or start "${searchQuery}":`, error.message);
                     }
                 }
 
                 if (!tracks.length && lastTrackError) throw lastTrackError;
+                if (playbackRequired && tracks.length && !startedPlayback) {
+                    throw lastTrackError || new Error('Lavalink did not confirm that playback started');
+                }
                 if (!tracks.length) return { player, track: null, tracks };
 
                 return { player, track: tracks[0], tracks, firstQueuePosition };
