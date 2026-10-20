@@ -2,6 +2,7 @@ const { Routes } = require('discord.js');
 
 const IDLE_VOICE_STATUS = 'silence, add a track';
 const MAX_VOICE_STATUS_LENGTH = 500;
+const VOICE_STATUS_EMOJI = '<:soza:1562134314039250974>';
 
 async function setVoiceChannelStatus(client, guildId, status, channelId = null) {
     const guild = client.guilds.cache.get(guildId);
@@ -14,8 +15,9 @@ async function setVoiceChannelStatus(client, guildId, status, channelId = null) 
         || await guild.channels.fetch(resolvedChannelId).catch(() => null);
     if (!voiceChannel?.isVoiceBased?.()) return false;
 
-    const normalizedStatus = typeof status === 'string'
-        ? status.trim().slice(0, MAX_VOICE_STATUS_LENGTH)
+    const text = typeof status === 'string' ? status.trim() : '';
+    const normalizedStatus = text
+        ? `${VOICE_STATUS_EMOJI} ${text}`.slice(0, MAX_VOICE_STATUS_LENGTH)
         : '';
 
     try {
@@ -34,5 +36,6 @@ async function setVoiceChannelStatus(client, guildId, status, channelId = null) 
 
 module.exports = {
     IDLE_VOICE_STATUS,
+    VOICE_STATUS_EMOJI,
     setVoiceChannelStatus
 };
