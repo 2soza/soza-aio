@@ -8,6 +8,7 @@ const { Riffy } = require('riffy');
 const { autoplayCollection } = require('../mongodb');
 const VoicePresence = require('../models/voicePresence/VoicePresence');
 const { start247Monitoring } = require('../utils/voiceStay');
+const { IDLE_VOICE_STATUS, setVoiceChannelStatus } = require('../utils/voiceChannelStatus');
 const { fetchSyncedLyrics, parseSyncedLyrics, getCurrentLineIndex } = require('../utils/lyrics');
 
 
@@ -527,6 +528,12 @@ module.exports = (client) => {
                 }, 30000);
                 const channel = client.channels.cache.get(player.textChannel);
                 const guildId = player.guildId;
+                await setVoiceChannelStatus(
+                    client,
+                    guildId,
+                    track?.info?.title || IDLE_VOICE_STATUS,
+                    player.voiceChannel
+                );
 
                 if (!channel) return;
 
@@ -940,6 +947,12 @@ module.exports = (client) => {
 
                     } catch (autoplayError) {
                         console.error('V2 Autoplay failed:', autoplayError);
+                        await setVoiceChannelStatus(
+                            client,
+                            guildId,
+                            IDLE_VOICE_STATUS,
+                            player.voiceChannel
+                        );
 
                         const failContainer = advancedMessageManager.createV2Container('warning')
                             .addTextDisplayComponents(
@@ -967,6 +980,12 @@ module.exports = (client) => {
                     });
 
                     if (keep247) {
+                        await setVoiceChannelStatus(
+                            client,
+                            guildId,
+                            IDLE_VOICE_STATUS,
+                            player.voiceChannel
+                        );
                         await advancedMessageManager.cleanupGuildMessages(client, guildId);
                         const keepAliveContainer = advancedMessageManager.createV2Container('session_end')
                             .addTextDisplayComponents(

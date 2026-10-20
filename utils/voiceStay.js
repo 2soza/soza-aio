@@ -1,6 +1,7 @@
 const { MessageFlags, PermissionFlagsBits } = require('discord.js');
 const { entersState, joinVoiceChannel, VoiceConnectionStatus } = require('@discordjs/voice');
 const VoicePresence = require('../models/voicePresence/VoicePresence');
+const { IDLE_VOICE_STATUS, setVoiceChannelStatus } = require('./voiceChannelStatus');
 
 const restoreJobs = new Map();
 const restoreTimers = new Map();
@@ -104,6 +105,12 @@ async function connectVoiceOnly(client, guild, voiceChannel) {
     }
 
     if (existing?.connected && existing.voiceChannel === voiceChannel.id) {
+        await setVoiceChannelStatus(
+            client,
+            guild.id,
+            existing.current?.info?.title || IDLE_VOICE_STATUS,
+            voiceChannel.id
+        );
         return { alreadyConnected: true };
     }
 
@@ -113,6 +120,7 @@ async function connectVoiceOnly(client, guild, voiceChannel) {
         currentConnection?.state.status === VoiceConnectionStatus.Ready &&
         currentConnection.joinConfig.channelId === voiceChannel.id
     ) {
+        await setVoiceChannelStatus(client, guild.id, IDLE_VOICE_STATUS, voiceChannel.id);
         return { alreadyConnected: true };
     }
 
@@ -178,6 +186,7 @@ async function connectVoiceOnly(client, guild, voiceChannel) {
             console.error(`[VoiceStay] Discord voice connection error in guild ${guild.id}:`, error.message || error);
         });
         await entersState(connection, VoiceConnectionStatus.Ready, 30000);
+        await setVoiceChannelStatus(client, guild.id, IDLE_VOICE_STATUS, voiceChannel.id);
         return { connection, alreadyConnected: false };
     } catch (error) {
         const connectionStatus = connection?.state?.status || 'not-created';
@@ -464,6 +473,9 @@ function start247Monitoring(client) {
     });
 
     client.riffy?.on('playerDestroy', player => {
+        if (player?.guildId && player.voiceChannel) {
+            setVoiceChannelStatus(client, player.guildId, '', player.voiceChannel);
+        }
         if (player?.guildId && !player.__voiceStayRecoveryDestroy) {
             schedule247Restore(client, player.guildId, 5000);
         }
