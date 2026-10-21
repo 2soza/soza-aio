@@ -4,37 +4,59 @@ const IDLE_VOICE_STATUS = 'silence, add a track';
 const MAX_VOICE_STATUS_LENGTH = 500;
 const VOICE_STATUS_EMOJI = '<a:soza:1562256028320399531>';
 
+const statusQueues = new Map();
+
 async function setVoiceChannelStatus(client, guildId, status, channelId = null) {
-    const guild = client.guilds.cache.get(guildId);
-    if (!guild) return false;
-
-    const resolvedChannelId = channelId || guild.members.me?.voice?.channelId;
-    if (!resolvedChannelId) return false;
-
-    const voiceChannel = guild.channels.cache.get(resolvedChannelId)
-        || await guild.channels.fetch(resolvedChannelId).catch(() => null);
-    if (!voiceChannel?.isVoiceBased?.()) return false;
-
-    let text = typeof status === 'string' ? status.trim() : '';
-    const currentInfo = client.riffy?.players?.get?.(guildId)?.current?.info;
-    if (text && currentInfo && text === String(currentInfo.title || '').trim()) {
-        text = formatTrackStatus(currentInfo);
+    let queue = statusQueues.get(guildId);
+    if (!queue) {
+        queue = { revision: 0, pending: Promise.resolve() };
+        statusQueues.set(guildId, queue);
     }
-    const normalizedStatus = text
-        ? `${VOICE_STATUS_EMOJI} ${text}`.slice(0, MAX_VOICE_STATUS_LENGTH)
-        : '';
+
+    const revision = ++queue.revision;
+    const update = queue.pending.catch(() => false).then(async () => {
+        if (queue.revision !== revision) return false;
+
+        const guild = client.guilds.cache.get(guildId);
+        if (!guild) return false;
+
+        const resolvedChannelId = channelId || guild.members.me?.voice?.channelId;
+        if (!resolvedChannelId) return false;
+
+        const voiceChannel = guild.channels.cache.get(resolvedChannelId)
+            || await guild.channels.fetch(resolvedChannelId).catch(() => null);
+        if (!voiceChannel?.isVoiceBased?.() || queue.revision !== revision) return false;
+
+        let text = typeof status === 'string' ? status.trim() : '';
+        const currentInfo = client.riffy?.players?.get?.(guildId)?.current?.info;
+        if (text && currentInfo && text === String(currentInfo.title || '').trim()) {
+            text = formatTrackStatus(currentInfo);
+        }
+        const normalizedStatus = text
+            ? `${VOICE_STATUS_EMOJI} ${text}`.slice(0, MAX_VOICE_STATUS_LENGTH)
+            : '';
+
+        try {
+            await client.rest.put(Routes.channelVoiceStatus(voiceChannel.id), {
+                body: { status: normalizedStatus }
+            });
+            return true;
+        } catch (error) {
+            console.warn(
+                `[VoiceStatus] Could not update channel status in guild ${guildId}:`,
+                error?.message || error
+            );
+            return false;
+        }
+    });
+    queue.pending = update;
 
     try {
-        await client.rest.put(Routes.channelVoiceStatus(voiceChannel.id), {
-            body: { status: normalizedStatus }
-        });
-        return true;
-    } catch (error) {
-        console.warn(
-            `[VoiceStatus] Could not update channel status in guild ${guildId}:`,
-            error?.message || error
-        );
-        return false;
+        return await update;
+    } finally {
+        if (statusQueues.get(guildId) === queue && queue.pending === update) {
+            statusQueues.delete(guildId);
+        }
     }
 }
 

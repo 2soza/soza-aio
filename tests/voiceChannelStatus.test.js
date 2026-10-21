@@ -88,3 +88,29 @@ test('the current track title is shown with its artist', async () => {
     await setVoiceChannelStatus(client, 'guild-123', 'Aku Tenang');
     assert.equal(calls[0][1].body.status, '<a:soza:1562256028320399531> Aku Tenang - Fourtwnty');
 });
+
+test('rapid track changes apply voice statuses in order so the newest track wins', async () => {
+    const { client, calls } = createClient();
+    let finishFirstRequest;
+    const firstRequest = new Promise(resolve => {
+        finishFirstRequest = resolve;
+    });
+
+    client.rest.put = async (...args) => {
+        calls.push(args);
+        if (calls.length === 1) await firstRequest;
+    };
+
+    const previousTrackUpdate = setVoiceChannelStatus(client, 'guild-123', 'Old track');
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(calls.length, 1);
+
+    const currentTrackUpdate = setVoiceChannelStatus(client, 'guild-123', 'New track');
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(calls.length, 1, 'the next update waits for the in-flight Discord request');
+
+    finishFirstRequest();
+    assert.deepEqual(await Promise.all([previousTrackUpdate, currentTrackUpdate]), [true, true]);
+    assert.equal(calls.length, 2);
+    assert.equal(calls[1][1].body.status, '<a:soza:1562256028320399531> New track');
+});
