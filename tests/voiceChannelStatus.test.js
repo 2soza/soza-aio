@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { IDLE_VOICE_STATUS, setVoiceChannelStatus } = require('../utils/voiceChannelStatus');
+const { IDLE_VOICE_STATUS, formatTrackStatus, setVoiceChannelStatus } = require('../utils/voiceChannelStatus');
 
 function createClient() {
     const calls = [];
@@ -41,7 +41,7 @@ test('voice status can show the track title beneath the voice channel name', asy
     );
     assert.deepEqual(calls, [[
         '/channels/voice-123/voice-status',
-        { body: { status: '<:soza:1562134314039250974> anything - Adrianne Lenker' } }
+        { body: { status: '<a:soza:1562256028320399531> anything - Adrianne Lenker' } }
     ]]);
 });
 
@@ -49,7 +49,7 @@ test('an idle voice connection uses the requested silence status', async () => {
     const { client, calls } = createClient();
 
     assert.equal(await setVoiceChannelStatus(client, 'guild-123', IDLE_VOICE_STATUS), true);
-    assert.equal(calls[0][1].body.status, '<:soza:1562134314039250974> silence, add a track');
+    assert.equal(calls[0][1].body.status, '<a:soza:1562256028320399531> silence, add a track');
 });
 
 test('voice status is limited to 500 characters', async () => {
@@ -72,4 +72,19 @@ test('clearing the status sends an empty status without the emoji', async () => 
 
     await setVoiceChannelStatus(client, 'guild-123', '');
     assert.equal(calls[0][1].body.status, '');
+});
+
+test('playing status is title - artist without the word by', () => {
+    assert.equal(formatTrackStatus({ title: 'Aku Tenang', author: 'Fourtwnty' }), 'Aku Tenang - Fourtwnty');
+});
+
+test('playing status falls back to the title when the artist is missing', () => {
+    assert.equal(formatTrackStatus({ title: 'Aku Tenang', author: '' }), 'Aku Tenang');
+});
+
+test('the current track title is shown with its artist', async () => {
+    const { client, calls } = createClient();
+    client.riffy = { players: new Map([['guild-123', { current: { info: { title: 'Aku Tenang', author: 'Fourtwnty' } } }]]) };
+    await setVoiceChannelStatus(client, 'guild-123', 'Aku Tenang');
+    assert.equal(calls[0][1].body.status, '<a:soza:1562256028320399531> Aku Tenang - Fourtwnty');
 });
