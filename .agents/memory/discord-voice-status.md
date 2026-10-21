@@ -14,3 +14,9 @@ The bot also needs Discord's `SET_VOICE_CHANNEL_STATUS` permission on the target
 **Why:** The deployed bot could play a new track and update its now-playing card while the voice-channel status stayed on an older playlist title; Discord's status endpoint requires this separate permission.
 
 **How to apply:** Grant `Set Voice Channel Status` to the bot role or as a channel override. Check the bot's Railway logs for `[VoiceStatus] Could not update channel status` if the status still does not change; do not block playback just because this optional permission is missing.
+
+If Discord's Audit Log records the new status text but a client still displays the old text, the API update succeeded and that client is showing stale channel-status UI. Compare another client or force-refresh/reopen Discord before changing bot code or retrying status writes.
+
+**Why:** The Audit Log showed the exact new track status while the Android voice-channel list continued showing the previous playlist title.
+
+**How to apply:** Treat the Audit Log entry as evidence of a successful write; ask the user to refresh or compare another Discord client when only the visible status is stale.
