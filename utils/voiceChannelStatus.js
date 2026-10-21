@@ -2,7 +2,7 @@ const { Routes } = require('discord.js');
 
 const IDLE_VOICE_STATUS = 'silence, add a track';
 const MAX_VOICE_STATUS_LENGTH = 500;
-const VOICE_STATUS_EMOJI = '<:soza:1562134314039250974>';
+const VOICE_STATUS_EMOJI = '<a:soza:1562256028320399531>';
 
 async function setVoiceChannelStatus(client, guildId, status, channelId = null) {
     const guild = client.guilds.cache.get(guildId);
@@ -15,7 +15,11 @@ async function setVoiceChannelStatus(client, guildId, status, channelId = null) 
         || await guild.channels.fetch(resolvedChannelId).catch(() => null);
     if (!voiceChannel?.isVoiceBased?.()) return false;
 
-    const text = typeof status === 'string' ? status.trim() : '';
+    let text = typeof status === 'string' ? status.trim() : '';
+    const currentInfo = client.riffy?.players?.get?.(guildId)?.current?.info;
+    if (text && currentInfo && text === String(currentInfo.title || '').trim()) {
+        text = formatTrackStatus(currentInfo);
+    }
     const normalizedStatus = text
         ? `${VOICE_STATUS_EMOJI} ${text}`.slice(0, MAX_VOICE_STATUS_LENGTH)
         : '';
