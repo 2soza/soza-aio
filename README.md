@@ -83,3 +83,7 @@ pnpm start
   <li><code>UI/banners/musicard.js</code>: Change, add, or remove music cards here.</li>
   <li><code>UI/icons/musicicons.js</code>: Change, add, or remove music icons here.</li>
 </ul>
+
+<h3>Deleted Message History</h3>
+<p>Moderators with the <code>Manage Messages</code> permission can use <code>/msg history</code> to view recently deleted messages privately. History is isolated by server and retained for up to 30 days. Message content is recorded while messages are active so it can be found if deleted later; messages outside the rolling 30-day archive window may not be available, and messages deleted before this feature was enabled cannot be recovered.</p>
+<p>Enable the <strong>Message Content Intent</strong> in the Discord Developer Portal for the bot application. Message attachments are recorded as names and links; attachment files themselves are not copied into the database.</p>
