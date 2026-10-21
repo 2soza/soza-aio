@@ -1,6 +1,6 @@
 const { Routes } = require('discord.js');
 
-const IDLE_VOICE_STATUS = '𝘀𝗶𝗹𝗲𝗻𝗰𝗲, 𝗮𝗱𝗱 𝗮 𝘁𝗿𝗮𝗰𝗸';
+const IDLE_VOICE_STATUS = 'silence, add a track';
 const MAX_VOICE_STATUS_LENGTH = 500;
 const VOICE_STATUS_EMOJI = '<a:soza:1562256028320399531>';
 
