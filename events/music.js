@@ -594,11 +594,11 @@ module.exports = (client) => {
                         section => section
                             .addTextDisplayComponents(
                                 textDisplay => textDisplay.setContent([
-                                    `**🎵 ${track.info.title}**`,
-                                    `**🎤 Artist:** ${track.info.author}`,
-                                    `**⏱️ Duration:** ${formatTime(track.info.length)}`,
-                                    `**🎶 Source:** ${track.info.sourceName || 'YouTube'}`,
-                                    `**🔥 Quality:** ${track.info.stream ? '🔴 Live Stream' : '📹 High Definition'}`
+                                    `**<:nowplaying:1563476977531224115> ${track.info.title}**`,
+                                    `**<:artist:1563476979968381008> Artist:** ${track.info.author}`,
+                                    `**<:duration:1563476982044426342> Duration:** ${formatTime(track.info.length)}`,
+                                    `**<:source:1563476983927676949> Source:** ${track.info.sourceName || 'YouTube'}`,
+                                    `**<:highdefinition:1563481832048037979> Quality:** ${track.info.stream ? '🔴 Live Stream' : '<:quality:1563476985898995793> High Definition'}`
                                 ].join('\n'))
                             )
                             .setThumbnailAccessory(
@@ -612,21 +612,21 @@ module.exports = (client) => {
                     .addSeparatorComponents(separator => separator)
                     .addTextDisplayComponents(
                         textDisplay => textDisplay.setContent([
-                            `**👤 Requested by:** ${track.requester ? `<@${track.requester.id}>` : 'All In One'}`,
-                            `**🎧 Queue Position:** Playing Now`,
-                            `**📊 Volume:** ${player.volume}%`,
-                            `**🔁 Loop:** ${player.loop || 'None'}`,
-                            `**▶️ Status:** ${player.playing ? '🟢 Active' : player.paused ? '🟡 Paused' : '🔴 Stopped'}`
+                            `**<:requestedby:1563476988105195583> Requested by:** ${track.requester ? `<@${track.requester.id}>` : 'All In One'}`,
+                            `**<:1000004993:1559504553844547584> Queue Position:** Playing Now`,
+                            `**<:volume:1563476990558994432> Volume:** ${player.volume}%`,
+                            `**<:1000004995:1559504557917216878> Loop:** ${player.loop || 'None'}`,
+                            `**<:1000004990:1559504547079127050> Status:** ${player.playing ? '<:active:1563481834556366868> Active' : player.paused ? '🟡 Paused' : '🔴 Stopped'}`
                         ].join('\n'))
                     )
                     .addSeparatorComponents(separator => separator)
                     .addTextDisplayComponents(
                         textDisplay => textDisplay.setContent([
-                            '**📈 TRACK STATISTICS**',
-                            `**📊 Bitrate:** High Quality Audio`,
-                            `**🎯 Seekable:** ${track.info.seekable ? '✅ Yes' : '❌ No'}`,
-                            `**🎪 Platform:** ${track.info.sourceName || 'YouTube Music'}`,
-                            track.info.uri ? `**🔗 [Open Original](${track.info.uri})**` : ''
+                            '**<:trackstats:1563476992853278830> TRACK STATISTICS**',
+                            `**<:bitrate:1563476995596361808> Bitrate:** High Quality Audio`,
+                            `**<:seekable:1563476997995503698> Seekable:** ${track.info.seekable ? '<:yes:1563481837114888273> Yes' : '❌ No'}`,
+                            `**<:platform:1563476999941398588> Platform:** ${track.info.sourceName || 'YouTube Music'}`,
+                            track.info.uri ? `**<:link:1563477002260840478> [Open Original](${track.info.uri})**` : ''
                         ].filter(Boolean).join('\n'))
                     );
 
