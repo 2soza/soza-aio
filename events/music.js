@@ -587,7 +587,7 @@ module.exports = (client) => {
 
                 let containerBuilder = advancedMessageManager.createV2Container('music')
                     .addTextDisplayComponents(
-                        textDisplay => textDisplay.setContent('**🎵 NOW PLAYING**')
+                        textDisplay => textDisplay.setContent('**<:nowplaying:1563476977531224115> NOW PLAYING**')
                     )
                     .addSeparatorComponents(separator => separator)
                     .addSectionComponents(
