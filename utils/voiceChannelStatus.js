@@ -31,6 +31,8 @@ async function setVoiceChannelStatus(client, guildId, status, channelId = null) 
         const currentInfo = client.riffy?.players?.get?.(guildId)?.current?.info;
         if (text && currentInfo && text === String(currentInfo.title || '').trim()) {
             text = formatTrackStatus(currentInfo);
+        } else if (text) {
+            text = cleanTitle(text);
         }
         const normalizedStatus = text
             ? `${VOICE_STATUS_EMOJI} ${text}`.slice(0, MAX_VOICE_STATUS_LENGTH)
@@ -60,34 +62,24 @@ async function setVoiceChannelStatus(client, guildId, status, channelId = null) 
     }
 }
 
-const NOISE_WORDS = /\b(official|lyrics?|lyric video|video|audio|music video|mv|m\/v|visuali[sz]er|hd|hq|4k|remaster(ed)?|explicit|clean|color coded|full album|live)\b/i;
-
 function cleanTitle(title) {
-    let text = title
-        .replace(/\s*[([【][^)\]】]*[)\]】]/g, match => (NOISE_WORDS.test(match) ? '' : match))
+    let text = title;
+    // Remove innermost groups first, including nested parentheses/brackets.
+    let previous;
+    do {
+        previous = text;
+        text = text.replace(/\([^()]*\)|\[[^\[\]]*\]/g, ' ');
+    } while (text !== previous);
+    return text
         .replace(/\s*[|｜].*$/, '')
         .replace(/\s+/g, ' ')
         .trim();
-    return text || title;
-}
-
-function cleanAuthor(author) {
-    return author.replace(/\s*-\s*Topic$/i, '').replace(/VEVO$/i, '').trim();
 }
 
 function formatTrackStatus(info) {
     const rawTitle = typeof info?.title === 'string' ? info.title.trim() : '';
-    const author = cleanAuthor(typeof info?.author === 'string' ? info.author.trim() : '');
     if (!rawTitle) return IDLE_VOICE_STATUS;
-    let title = cleanTitle(rawTitle, author);
-    const squash = value => value.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
-    const dash = title.indexOf(' - ');
-    let artist = author;
-    if (dash > 0 && author && squash(title.slice(0, dash)) === squash(author)) {
-        artist = title.slice(0, dash).trim();
-        title = title.slice(dash + 3).trim();
-    }
-    return artist ? `${title} - ${artist}` : title;
+    return cleanTitle(rawTitle) || IDLE_VOICE_STATUS;
 }
 
 module.exports = {

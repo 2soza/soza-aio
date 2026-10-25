@@ -74,19 +74,19 @@ test('clearing the status sends an empty status without the emoji', async () => 
     assert.equal(calls[0][1].body.status, '');
 });
 
-test('playing status is title - artist without the word by', () => {
-    assert.equal(formatTrackStatus({ title: 'Aku Tenang', author: 'Fourtwnty' }), 'Aku Tenang - Fourtwnty');
+test('playing status uses only the title without appending the author', () => {
+    assert.equal(formatTrackStatus({ title: 'Aku Tenang', author: 'Fourtwnty' }), 'Aku Tenang');
 });
 
 test('playing status falls back to the title when the artist is missing', () => {
     assert.equal(formatTrackStatus({ title: 'Aku Tenang', author: '' }), 'Aku Tenang');
 });
 
-test('the current track title is shown with its artist', async () => {
+test('the current track title is shown without appending its author', async () => {
     const { client, calls } = createClient();
     client.riffy = { players: new Map([['guild-123', { current: { info: { title: 'Aku Tenang', author: 'Fourtwnty' } } }]]) };
     await setVoiceChannelStatus(client, 'guild-123', 'Aku Tenang');
-    assert.equal(calls[0][1].body.status, '<a:soza:1562256028320399531> Aku Tenang - Fourtwnty');
+    assert.equal(calls[0][1].body.status, '<a:soza:1562256028320399531> Aku Tenang');
 });
 
 test('rapid track changes apply voice statuses in order so the newest track wins', async () => {
@@ -113,4 +113,45 @@ test('rapid track changes apply voice statuses in order so the newest track wins
     assert.deepEqual(await Promise.all([previousTrackUpdate, currentTrackUpdate]), [true, true]);
     assert.equal(calls.length, 2);
     assert.equal(calls[1][1].body.status, '<a:soza:1562256028320399531> New track');
+});
+
+test('parenthesized text is removed from voice titles', () => {
+    assert.equal(formatTrackStatus({ title: 'SOULJAH - Bilang I Love You (Official Audio)', author: 'Bahaya Records' }), 'SOULJAH - Bilang I Love You');
+    assert.equal(formatTrackStatus({ title: 'Song (Acoustic Version) (2026)', author: 'Uploader' }), 'Song');
+});
+
+test('square-bracketed text is removed from voice titles', () => {
+    assert.equal(formatTrackStatus({ title: 'Hampa - Ari Lasso [ Lirik Lagu ]', author: 'Lalala' }), 'Hampa - Ari Lasso');
+});
+
+test('nested groups are removed and whitespace is normalized', () => {
+    assert.equal(formatTrackStatus({ title: '  ST12 - Putri Iklan (Live [Session]) [HD]  ', author: 'Radio' }), 'ST12 - Putri Iklan');
+});
+
+test('singer names already in the title stay in their original position', () => {
+    assert.equal(formatTrackStatus({ title: 'Fourtwnty - Aku Tenang', author: 'Fourtwnty' }), 'Fourtwnty - Aku Tenang');
+});
+
+test('voice status formatting does not mutate now-playing metadata', () => {
+    const info = { title: 'SOULJAH - Bilang I Love You (Official Audio)', author: 'Bahaya Records' };
+    formatTrackStatus(info);
+    assert.deepEqual(info, { title: 'SOULJAH - Bilang I Love You (Official Audio)', author: 'Bahaya Records' });
+});
+
+test('raw current-track titles are cleaned before being sent to Discord', async () => {
+    const { client, calls } = createClient();
+    const info = { title: 'Hampa - Ari Lasso [ Lirik Lagu ] (Video)', author: 'Lalala' };
+    client.riffy = { players: new Map([['guild-123', { current: { info } }]]) };
+    await setVoiceChannelStatus(client, 'guild-123', info.title);
+    assert.equal(calls[0][1].body.status, '<a:soza:1562256028320399531> Hampa - Ari Lasso');
+});
+
+test('direct status updates also remove bracketed text', async () => {
+    const { client, calls } = createClient();
+    await setVoiceChannelStatus(client, 'guild-123', 'ST12 - Putri Iklan [Lyrics] (Audio)');
+    assert.equal(calls[0][1].body.status, '<a:soza:1562256028320399531> ST12 - Putri Iklan');
+});
+
+test('a title containing only removed groups never restores them', () => {
+    assert.equal(formatTrackStatus({ title: '(Official Audio) [HD]', author: 'Uploader' }), IDLE_VOICE_STATUS);
 });
