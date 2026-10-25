@@ -6,6 +6,7 @@ const axios = require('axios');
 const musicIcons = require('../UI/icons/musicicons');
 const { Riffy } = require('riffy');
 const { autoplayCollection } = require('../mongodb');
+const { runSafeAutoplay } = require('../utils/safeAutoplay');
 const VoicePresence = require('../models/voicePresence/VoicePresence');
 const { start247Monitoring } = require('../utils/voiceStay');
 const { IDLE_VOICE_STATUS, setVoiceChannelStatus } = require('../utils/voiceChannelStatus');
@@ -857,81 +858,24 @@ module.exports = (client) => {
 
                     player.__autoplayInProgress = true;
                     try {
-                        let lastAutoplayError = null;
-                        let autoplayStarted = false;
-
-                        // Riffy 1.0.12 starts play() without awaiting it inside
-                        // autoplay(). Capture that promise so connection, queue,
-                        // and REST failures are handled here instead of becoming
-                        // an unhandled rejection after a false success message.
-                        const runAutoplayAttempt = async () => {
-                            const originalPlay = player.play;
-                            let playPromise = null;
-                            const waitWithTimeout = (promise, timeoutMs, message) => {
-                                let timeoutId;
-                                const timeoutPromise = new Promise((_, reject) => {
-                                    timeoutId = setTimeout(
-                                        () => reject(new Error(message)),
-                                        timeoutMs
-                                    );
-                                });
-
-                                return Promise.race([promise, timeoutPromise])
-                                    .finally(() => clearTimeout(timeoutId));
-                            };
-
-                            player.play = (...args) => {
-                                playPromise = Promise.resolve(originalPlay.apply(player, args));
-                                return playPromise;
-                            };
-
-                            try {
-                                const autoplayPromise = player.autoplay(player);
-                                await waitWithTimeout(
-                                    autoplayPromise,
-                                    20000,
-                                    'Autoplay resolve timed out'
-                                );
-
-                                if (!playPromise) {
-                                    throw new Error('Autoplay resolved without starting playback');
-                                }
-
-                                await waitWithTimeout(
-                                    playPromise,
-                                    20000,
-                                    'Autoplay playback timed out'
-                                );
-
-                                if (!player.playing || !player.current) {
-                                    throw new Error('Autoplay did not leave an active track');
-                                }
-                            } finally {
-                                player.play = originalPlay;
-                            }
-                        };
-
-                        for (let attempt = 1; attempt <= 3; attempt++) {
-                            try {
-                                await runAutoplayAttempt();
-                                autoplayStarted = true;
-                                break;
-                            } catch (attemptError) {
-                                lastAutoplayError = attemptError;
+                        const result = await runSafeAutoplay(player, {
+                            attempts: 3,
+                            resolveTimeoutMs: 20000,
+                            playTimeoutMs: 20000,
+                            isStillValid: () =>
+                                !player.__manualStop &&
+                                !!player.connection &&
+                                client.riffy.players.get(guildId) === player,
+                            onAttemptFailed: (attempt, total, attemptError) => {
                                 console.warn(
-                                    `[V2 AUTOPLAY] Attempt ${attempt}/3 failed in guild ${guildId}:`,
+                                    `[V2 AUTOPLAY] Attempt ${attempt}/${total} failed in guild ${guildId}:`,
                                     attemptError.message
                                 );
-
-                                if (attempt < 3) {
-                                    await new Promise(resolve => setTimeout(resolve, 1000));
-                                }
                             }
-                        }
+                        });
 
-                        if (!autoplayStarted) {
-                            throw lastAutoplayError || new Error('Autoplay could not start a track');
-                        }
+                        // Something else (user /play, stop, leave) took over.
+                        if (!result.started) return;
 
                         const successContainer = advancedMessageManager.createV2Container('success')
                             .addTextDisplayComponents(
