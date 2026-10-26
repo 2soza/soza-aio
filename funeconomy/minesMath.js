@@ -2,6 +2,7 @@ const crypto = require('node:crypto');
 const cfg = require('./config');
 
 const BOARD_SIZE = 9;
+const MAX_MINES = 3;
 const RTP_NUMERATOR = Math.round(cfg.MINES_RTP * 100);
 
 function combination(n, k) {
@@ -15,7 +16,7 @@ function combination(n, k) {
 
 /** Fair combinatorial payout with the configured house edge applied. */
 function multiplierFor(mineCount, safePicks) {
-    if (!Number.isInteger(mineCount) || mineCount < 1 || mineCount >= BOARD_SIZE) return null;
+    if (!Number.isInteger(mineCount) || mineCount < 1 || mineCount > MAX_MINES) return null;
     if (!Number.isInteger(safePicks) || safePicks < 1 || safePicks > BOARD_SIZE - mineCount) return null;
 
     const favorableOutcomes = combination(BOARD_SIZE, safePicks);
@@ -36,8 +37,8 @@ function payoutFor(bet, mineCount, safePicks) {
 }
 
 function generateMinePositions(mineCount) {
-    if (!Number.isInteger(mineCount) || mineCount < 1 || mineCount >= BOARD_SIZE) {
-        throw new RangeError(`mineCount must be between 1 and ${BOARD_SIZE - 1}`);
+    if (!Number.isInteger(mineCount) || mineCount < 1 || mineCount > MAX_MINES) {
+        throw new RangeError(`mineCount must be between 1 and ${MAX_MINES}`);
     }
 
     const cells = Array.from({ length: BOARD_SIZE }, (_, index) => index);
@@ -50,17 +51,18 @@ function generateMinePositions(mineCount) {
 
 function parseMineCount(token) {
     if (token === undefined) return { mineCount: 1 };
-    if (!/^\d+$/.test(String(token))) return { error: 'mine count must be a whole number from 1 to 8.' };
+    if (!/^\d+$/.test(String(token))) return { error: `mine count must be a whole number from 1 to ${MAX_MINES}.` };
 
     const mineCount = Number(token);
-    if (mineCount < 1 || mineCount >= BOARD_SIZE) {
-        return { error: 'choose between **1 and 8 mines** so the board always has a safe tile.' };
+    if (mineCount < 1 || mineCount > MAX_MINES) {
+        return { error: `choose between **1 and ${MAX_MINES} mines**.` };
     }
     return { mineCount };
 }
 
 module.exports = {
     BOARD_SIZE,
+    MAX_MINES,
     combination,
     multiplierFor,
     payoutFor,

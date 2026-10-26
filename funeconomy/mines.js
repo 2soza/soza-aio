@@ -6,7 +6,7 @@ const cooldown = require('./cooldown');
 const Mines = require('../models/funeconomy/mines');
 const Economy = require('../models/funeconomy/economy');
 const {
-    BOARD_SIZE, multiplierFor, payoutFor, generateMinePositions
+    BOARD_SIZE, payoutFor, generateMinePositions
 } = require('./minesMath');
 const {
     fmt, displayName, send, sendTemporaryError, sendEmbed, resolveBet, errorLine,
@@ -25,11 +25,8 @@ function formatMultiplier(value) {
 
 function render(game, name) {
     const picks = game.revealed.length;
-    const currentMultiplier = picks ? multiplierFor(game.mineCount, picks) : null;
     const currentPayout = picks ? payoutFor(game.bet, game.mineCount, picks) : 0;
-    const nextMultiplier = picks < BOARD_SIZE - game.mineCount
-        ? multiplierFor(game.mineCount, picks + 1)
-        : null;
+    const currentAmount = game.status === 'cashed_out' ? game.payout : currentPayout;
     const nextPayout = picks < BOARD_SIZE - game.mineCount
         ? payoutFor(game.bet, game.mineCount, picks + 1)
         : null;
@@ -44,10 +41,11 @@ function render(game, name) {
         description = `Choose a tile. Cash out after revealing a gem.`;
     }
 
-    const resultAmount = game.status === 'lost' ? 0 : game.payout;
-    const resultMultiplier = game.status === 'cashed_out' && game.bet
-        ? resultAmount / game.bet
-        : null;
+    const currentLine = `${cfg.CASH_EMOJI} **${fmt(currentAmount)}** (${formatMultiplier(currentAmount / game.bet)})`;
+    const nextLine = nextPayout === null
+        ? '—'
+        : `${cfg.CASH_EMOJI} **${fmt(nextPayout)}** (${formatMultiplier(nextPayout / game.bet)})`;
+    const crossedOut = (value) => ended ? `~~${value}~~` : value;
 
     return new EmbedBuilder()
         .setColor(game.status === 'lost' ? 0xe74c3c : ended ? 0x2ecc71 : 0x5865f2)
@@ -57,19 +55,13 @@ function render(game, name) {
             { name: 'Bet', value: `${cfg.CASH_EMOJI} **${fmt(game.bet)}**`, inline: true },
             { name: 'Mines', value: `💣 **${game.mineCount}**`, inline: true },
             {
-                name: ended ? 'Winnings' : 'Cash Out',
-                value: ended
-                    ? `${cfg.CASH_EMOJI} **${fmt(resultAmount)}**${resultMultiplier === null ? '' : ` (${formatMultiplier(resultMultiplier)})`}`
-                    : picks
-                        ? `${cfg.CASH_EMOJI} **${fmt(currentPayout)}** (${formatMultiplier(currentMultiplier)})`
-                        : 'Reveal at least one gem',
+                name: game.status === 'cashed_out' ? 'Winnings' : 'Cash Out',
+                value: crossedOut(currentLine),
                 inline: true
             },
             {
                 name: 'Next',
-                value: ended || nextPayout === null
-                    ? '—'
-                    : `${cfg.CASH_EMOJI} **${fmt(nextPayout)}** (${formatMultiplier(nextMultiplier)})`,
+                value: crossedOut(nextLine),
                 inline: true
             }
         )
@@ -91,8 +83,10 @@ function buildComponents(game) {
             const button = new ButtonBuilder()
                 .setCustomId(`${BUTTON_PREFIX}:tile:${game.userId}:${index}`)
                 .setStyle(isMine && ended ? ButtonStyle.Danger : isSafe ? ButtonStyle.Success : ButtonStyle.Secondary)
-                .setEmoji(isMine && ended ? '💥' : isSafe ? '💎' : '🔹')
                 .setDisabled(ended || isSafe);
+            if (isMine && ended) button.setEmoji('💥');
+            else if (isSafe) button.setEmoji('💎');
+            else button.setLabel('?');
             row.addComponents(button);
         }
         rows.push(row);
@@ -101,7 +95,7 @@ function buildComponents(game) {
     const cashOut = new ButtonBuilder()
         .setCustomId(`${BUTTON_PREFIX}:cash:${game.userId}`)
         .setLabel('Cash Out')
-        .setEmoji('💵')
+        .setEmoji(cfg.CASH_EMOJI)
         .setStyle(ButtonStyle.Success)
         .setDisabled(ended || game.revealed.length === 0);
     rows.push(new ActionRowBuilder().addComponents(cashOut));
@@ -346,7 +340,7 @@ async function startCommand(message, args, client) {
         }
 
         if (args.length > 2) {
-            return send(message, errorLine(name, 'use `smines <bet|all> [1-8 mines]`.'));
+            return send(message, errorLine(name, 'use `smines <bet|all> [1-3 mines]`.'));
         }
         const parsedMines = parseMineCount(args[1]);
         if (parsedMines.error) return send(message, errorLine(name, parsedMines.error));

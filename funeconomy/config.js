@@ -3,7 +3,7 @@
  *
  * Command dikirim TANPA titik/prefix bot, cukup ketik langsung di chat:
  *   scash | scf <jumlah|all> [h/t] | ss <jumlah|all> | sdaily | sgive @user <jumlah> | slb
-     *   sbj <jumlah|all> | smines <jumlah|all> [1-8 ranjau] | slottery [jumlah|all] | sdrop <jumlah|all> | spickup | slb [kategori] [global] [n] | smy
+     *   sbj <jumlah|all> | smines <jumlah|all> [1-3 ranjau] | slottery [jumlah|all] | sdrop <jumlah|all> | spickup | slb [kategori] [global] [n] | smy
  */
 module.exports = {
     // Prefix semua command fun economy ("s" + nama command -> scash, scf, ss, ...)
