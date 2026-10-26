@@ -1,13 +1,12 @@
 const { PermissionFlagsBits } = require('discord.js');
+const adminOrBotOwner = require('../../utils/adminOrBotOwner');
 
 module.exports = {
     async execute(message, args) {
-        const hasPermission =
-            message.member.permissions.has(PermissionFlagsBits.ManageMessages) ||
-            message.member.permissions.has(PermissionFlagsBits.Administrator);
+        const hasPermission = adminOrBotOwner(message);
 
         if (!hasPermission) {
-            const reply = await message.reply('❌ You need the **Manage Messages** permission to use this command.');
+            const reply = await message.reply('❌ Only members with **Administrator** permission or the **bot owner** can use this command.');
             setTimeout(() => reply.delete().catch(() => {}), 5000);
             return;
         }
