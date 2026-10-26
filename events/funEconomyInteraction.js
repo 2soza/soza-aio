@@ -1,5 +1,6 @@
 const { BUTTON_PREFIX, handleButton } = require('../funeconomy/blackjack');
 const register = require('../funeconomy/register');
+const mines = require('../funeconomy/mines');
 
 // Tombol blackjack (Hit/Stand) dan Register. Dimuat otomatis oleh handlers/events.js.
 module.exports = {
@@ -12,6 +13,9 @@ module.exports = {
         }
         if (interaction.customId.startsWith(`${BUTTON_PREFIX}:`)) {
             return handleButton(interaction, client);
+        }
+        if (interaction.customId.startsWith(`${mines.BUTTON_PREFIX}:`)) {
+            return mines.handleButton(interaction);
         }
     }
 };

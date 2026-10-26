@@ -3,7 +3,7 @@
  *
  * Command dikirim TANPA titik/prefix bot, cukup ketik langsung di chat:
  *   scash | scf <jumlah|all> [h/t] | ss <jumlah|all> | sdaily | sgive @user <jumlah> | slb
- *   sbj <jumlah|all> | slottery [jumlah|all] | sdrop <jumlah|all> | spickup | slb [kategori] [global] [n] | smy
+     *   sbj <jumlah|all> | smines <jumlah|all> [1-8 ranjau] | slottery [jumlah|all] | sdrop <jumlah|all> | spickup | slb [kategori] [global] [n] | smy
  */
 module.exports = {
     // Prefix semua command fun economy ("s" + nama command -> scash, scf, ss, ...)
@@ -25,6 +25,7 @@ module.exports = {
         slots: 15000,
         cf: 15000,
         bj: 15000,
+        mines: 15000,
         lottery: 15000,
         lb: 15000,
         my: 15000
@@ -101,6 +102,9 @@ module.exports = {
         HIT_EMOJI: '👊',
         STAND_EMOJI: '🛑'
     },
+
+    // Mines: payout combinatorial dengan RTP 94% (cocok dengan contoh 2.82x pada 1 ranjau/6 pilihan).
+    MINES_RTP: 0.94,
 
     // Lottery (slottery). Satu pool global, selesai tiap pergantian hari (zona waktu di atas).
     // Peluang menang = total taruhanmu / total pool.

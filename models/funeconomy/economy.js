@@ -46,6 +46,21 @@ async function deduct(userId, amount) {
     ).lean();
 }
 
+/** Deduct a mines bet exactly once, including when the game is resumed after a restart. */
+async function deductMinesBet(userId, gameId, amount) {
+    await ensureAccount(userId);
+    const marker = String(gameId);
+    const updated = await FunEconomy.findOneAndUpdate(
+        { userId, cash: { $gte: amount }, lastMinesBetId: { $ne: marker } },
+        { $inc: { cash: -amount }, $set: { lastMinesBetId: marker } },
+        { new: true }
+    ).select('_id').lean();
+    if (updated) return true;
+
+    const existing = await FunEconomy.findOne({ userId }).select('lastMinesBetId').lean();
+    return existing?.lastMinesBetId === marker;
+}
+
 /** Tambah saldo (membuat akun kalau belum ada). */
 async function add(userId, amount) {
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -77,6 +92,16 @@ async function addBlackjackPayout(userId, gameId, amount) {
     return FunEconomy.findOneAndUpdate(
         { userId, lastBlackjackPayoutId: { $ne: String(gameId) } },
         { $inc: { cash: amount }, $set: { lastBlackjackPayoutId: String(gameId) } },
+        { new: true }
+    ).lean();
+}
+
+/** Credit a mines cash-out exactly once if processing is resumed after a restart. */
+async function addMinesPayout(userId, gameId, amount) {
+    await ensureAccount(userId);
+    return FunEconomy.findOneAndUpdate(
+        { userId, lastMinesPayoutId: { $ne: String(gameId) } },
+        { $inc: { cash: amount }, $set: { lastMinesPayoutId: String(gameId) } },
         { new: true }
     ).lean();
 }
@@ -115,6 +140,6 @@ async function top(limit = 10) {
 }
 
 module.exports = {
-    getCash, settleBet, deduct, add, addLotteryPayout, addBlackjackPayout,
+    getCash, settleBet, deduct, deductMinesBet, add, addLotteryPayout, addBlackjackPayout, addMinesPayout,
     claimDaily, getLastDailyDay, top, ensureAccount
 };

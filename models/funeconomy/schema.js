@@ -12,6 +12,8 @@ const funEconomySchema = new mongoose.Schema({
     // Idempotency markers prevent a recovered lottery/blackjack payout from crediting twice.
     lotteryPayoutDays: { type: [Number], default: [] },
     lastBlackjackPayoutId: { type: String, default: null },
+    lastMinesBetId: { type: String, default: null },
+    lastMinesPayoutId: { type: String, default: null },
     // null = belum terdaftar.
     registeredAt: { type: Date, default: null },
     accountNumber: { type: Number, default: null },

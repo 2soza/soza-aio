@@ -11,6 +11,7 @@ Command diketik **tanpa titik**, langsung di chat. Semua pengaturan ada di `fune
 | `scf <jumlah\|all> [h/t]` | coinflip, coin, flip | Coin flip (menang = 2x) |
 | `ss <jumlah\|all>` | slots, slot | Slots (lihat tabel di bawah) |
 | `sbj <jumlah\|all>` | blackjack | Blackjack dengan tombol Hit/Stand. Ketik ulang `sbj` untuk melanjutkan game |
+| `smines <jumlah\|all> [1-8 ranjau]` | | Mines 3×3 dengan tombol petak dan cash out. Default 1 ranjau |
 | `slottery [jumlah\|all]` | bet, lotto | Lottery harian, satu pool untuk semua server |
 | `sdrop <jumlah\|all>` | | Taruh cash di channel |
 | `spickup` | | Ambil semua cash yang di-drop di channel ini |
@@ -20,10 +21,11 @@ Command diketik **tanpa titik**, langsung di chat. Semua pengaturan ada di `fune
 Kategori ranking: `cash` (default), `daily`, `level`, `guild`. Tanpa `global` = server ini.
 Contoh: `slb`, `slb global`, `slb daily 5`, `slb level g`, `slb guild`, `smy`, `smy cash global`.
 
-- Cooldown **15 detik** per game untuk `ss`, `scf`, `sbj` (per user). Dipakai bersama command prefix dan slash; ubah di `COOLDOWNS` pada `config.js` (0 = mati).
+- Cooldown **15 detik** per game untuk `ss`, `scf`, `sbj`, `smines` (per user). Ubah di `COOLDOWNS` pada `config.js` (0 = mati).
 - Taruhan minimal **1**, maksimal **250,000**. `all` = `min(saldo, 250,000)`.
 - Slots (odds OwO, RTP 95%): 🍆🍆🍆 x1 (20%), ❤️❤️❤️ x2 (20%), 🍒🍒🍒 x3 (5%), cash x3 x4 (2.5%), ⭕🇼⭕ x10 (1%).
 - Blackjack: menang 2x, seri = taruhan kembali, dealer berhenti di 17, tepat 21 otomatis stand.
+- Mines: pilih 1–8 ranjau, buka petak dengan tombol, lalu cash out sebelum kena ranjau. Payout memakai peluang kombinasi dengan RTP 94%; game aktif tersimpan agar bisa dilanjutkan dengan mengetik ulang `smines`.
 - Lottery: peluang menang = taruhanmu / total pool, maksimal 250,000 per lottery per user. Undian otomatis setiap pergantian hari; pemenang menerima seluruh pool dan DM.
 - `ss` tanpa angka diabaikan (supaya "ss" = screenshot di chat tidak memicu slots). Ubah lewat `SLOTS_REQUIRE_AMOUNT`.
 - Ganti emoji (mis. emoji custom server) di `CASH_EMOJI`, `COIN`, `SLOT_EMOJI`, dan `SLOT_SPINNING`.

@@ -19,7 +19,8 @@ function buildGetStarted() {
         '### 🚀 Get Started',
         `\`${p}daily\` · claim your daily ${cfg.CASH_NAME}`,
         `\`${p}cash\` · check your balance`,
-        `\`${p}s <bet>\` · \`${p}cf <bet>\` · \`${p}bj <bet>\` · slots, coinflip, blackjack`,
+        `\`${p}s <bet>\` · \`${p}cf <bet>\` · \`${p}bj <bet>\` · \`${p}mines <bet> [1-8]\``,
+        'Slots, coinflip, blackjack, and Mines'
         `\`${p}lb\` · see the rankings`
     ].join('\n');
 }
