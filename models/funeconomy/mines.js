@@ -5,7 +5,7 @@ const minesSchema = new mongoose.Schema({
     channelId: { type: String, default: null },
     messageId: { type: String, default: null },
     bet: { type: Number, required: true, min: 1 },
-    mineCount: { type: Number, required: true, min: 1, max: 3 },
+    mineCount: { type: Number, required: true, min: 1, max: 8 },
     minePositions: { type: [Number], required: true },
     revealed: { type: [Number], default: [] },
     hitPosition: { type: Number, min: 0, max: 8, default: null },

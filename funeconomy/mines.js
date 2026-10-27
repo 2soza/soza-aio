@@ -345,7 +345,7 @@ async function startCommand(message, args, client) {
         }
 
         if (args.length > 2) {
-            return send(message, errorLine(name, 'use `smines <bet|all> [1-3 mines]`.'));
+            return send(message, errorLine(name, 'use `smines <bet|all> [1-8 mines, default 3]`.'));
         }
         const parsedMines = parseMineCount(args[1]);
         if (parsedMines.error) return send(message, errorLine(name, parsedMines.error));

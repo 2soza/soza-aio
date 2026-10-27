@@ -2,7 +2,8 @@ const crypto = require('node:crypto');
 const cfg = require('./config');
 
 const BOARD_SIZE = 9;
-const MAX_MINES = 3;
+const DEFAULT_MINES = 3;
+const MAX_MINES = 8;
 const RTP_NUMERATOR = Math.round(cfg.MINES_RTP * 100);
 
 function combination(n, k) {
@@ -50,7 +51,7 @@ function generateMinePositions(mineCount) {
 }
 
 function parseMineCount(token) {
-    if (token === undefined) return { mineCount: MAX_MINES };
+    if (token === undefined) return { mineCount: DEFAULT_MINES };
     if (!/^\d+$/.test(String(token))) return { error: `mine count must be a whole number from 1 to ${MAX_MINES}.` };
 
     const mineCount = Number(token);
@@ -62,6 +63,7 @@ function parseMineCount(token) {
 
 module.exports = {
     BOARD_SIZE,
+    DEFAULT_MINES,
     MAX_MINES,
     combination,
     multiplierFor,
