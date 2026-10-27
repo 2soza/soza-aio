@@ -84,7 +84,7 @@ function render(game, userId) {
 
             if (isMine && ended) button.setEmoji(isHitMine ? '💥' : '💣');
             else if (isSafe || ended) button.setEmoji('💎');
-            else button.setEmoji('❔');
+            else button.setEmoji('<:tile_question:1564474304257720361>');
             row.addComponents(button);
         }
         container.addActionRowComponents(row);
