@@ -47,11 +47,11 @@ function render(game, userId) {
     const nextValue = nextPayout === null
         ? '—'
         : `\`${fmt(nextPayout)}\` \`(${formatMultiplier(nextPayout / game.bet)})\``;
-    const nextLine = `Next: ${nextValue}`;
+    const nextLine = `-# Next: ${nextValue}`;
     const summary = [
         `-# **Bet:** \`${fmt(game.bet)}\`　 **Mines:** \`${game.mineCount}\``,
-        game.status === 'lost' ? `-# ~~**${currentLine}**~~` : currentLine,
-        ended ? `-# ~~**${nextLine}**~~` : nextLine
+        game.status === 'lost' ? `-# ~~${currentLine}~~` : currentLine,
+        ended ? `-# ~~${nextLine}~~` : nextLine
     ].join('\n');
 
     const accentColor = game.status === 'lost'
