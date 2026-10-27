@@ -43,15 +43,15 @@ function render(game, userId) {
     }
 
     const currentLabel = game.status === 'cashed_out' ? 'Winnings' : 'Cash Out';
-    const currentLine = `-# ${currentLabel}: \`${fmt(currentAmount)}\` \`(${formatMultiplier(currentAmount / game.bet)})\``;
+    const currentLine = `${currentLabel}: \`${fmt(currentAmount)}\` \`(${formatMultiplier(currentAmount / game.bet)})\``;
     const nextValue = nextPayout === null
         ? '—'
         : `\`${fmt(nextPayout)}\` \`(${formatMultiplier(nextPayout / game.bet)})\``;
     const nextLine = `Next: ${nextValue}`;
     const summary = [
-        `-# Bet: \`${fmt(game.bet)}\`　 Mines: \`${game.mineCount}\``,
-        game.status === 'lost' ? `-# ~~${currentLine}~~` : currentLine,
-        ended ? `-# ~~${nextLine}~~` : nextLine
+        `-# **Bet:** \`${fmt(game.bet)}\`　 **Mines:** \`${game.mineCount}\``,
+        game.status === 'lost' ? `-# ~~**${currentLine}**~~` : currentLine,
+        ended ? `-# ~~**${nextLine}**~~` : nextLine
     ].join('\n');
 
     const accentColor = game.status === 'lost'
