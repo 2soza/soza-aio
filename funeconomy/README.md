@@ -11,7 +11,7 @@ Command diketik **tanpa titik**, langsung di chat. Semua pengaturan ada di `fune
 | `scf <jumlah\|all> [h/t]` | coinflip, coin, flip | Coin flip (menang = 2x) |
 | `ss <jumlah\|all>` | slots, slot | Slots (lihat tabel di bawah) |
 | `sbj <jumlah\|all>` | blackjack | Blackjack dengan tombol Hit/Stand. Ketik ulang `sbj` untuk melanjutkan game |
-| `smines <jumlah\|all> [1-3 ranjau]` | | Mines 3×3 dengan tombol petak dan cash out. Default 1 ranjau |
+| `smines <jumlah\|all> [1-3 ranjau]` | | Mines 3×3 dengan tombol petak dan cash out. Default 3 ranjau |
 | `slottery [jumlah\|all]` | bet, lotto | Lottery harian, satu pool untuk semua server |
 | `sdrop <jumlah\|all>` | | Taruh cash di channel |
 | `spickup` | | Ambil semua cash yang di-drop di channel ini |

@@ -50,7 +50,7 @@ function generateMinePositions(mineCount) {
 }
 
 function parseMineCount(token) {
-    if (token === undefined) return { mineCount: 1 };
+    if (token === undefined) return { mineCount: MAX_MINES };
     if (!/^\d+$/.test(String(token))) return { error: `mine count must be a whole number from 1 to ${MAX_MINES}.` };
 
     const mineCount = Number(token);

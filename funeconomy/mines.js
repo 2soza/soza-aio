@@ -6,7 +6,7 @@ const cooldown = require('./cooldown');
 const Mines = require('../models/funeconomy/mines');
 const Economy = require('../models/funeconomy/economy');
 const {
-    BOARD_SIZE, payoutFor, generateMinePositions
+    BOARD_SIZE, payoutFor, generateMinePositions, parseMineCount
 } = require('./minesMath');
 const {
     fmt, displayName, send, sendTemporaryError, sendEmbed, resolveBet, errorLine,

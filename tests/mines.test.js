@@ -38,8 +38,8 @@ test('Mine placement creates the requested number of unique cells', () => {
     }
 });
 
-test('Mine count defaults to one and accepts only 1 through 3', () => {
-    assert.deepEqual(parseMineCount(undefined), { mineCount: 1 });
+test('Mine count defaults to three and accepts only 1 through 3', () => {
+    assert.deepEqual(parseMineCount(undefined), { mineCount: 3 });
     assert.deepEqual(parseMineCount('3'), { mineCount: 3 });
     assert.ok(parseMineCount('0').error);
     assert.ok(parseMineCount('4').error);
