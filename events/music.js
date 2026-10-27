@@ -702,7 +702,8 @@ module.exports = (client) => {
 
                 const messageOptions = {
                     components: [containerBuilder],
-                    flags: MessageFlags.IsComponentsV2
+                    flags: MessageFlags.IsComponentsV2,
+                    allowedMentions: { parse: [] }
                 };
 
                 if (attachment) {

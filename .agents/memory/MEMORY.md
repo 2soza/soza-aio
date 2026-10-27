@@ -9,3 +9,4 @@
 - [Discord voice channel status](discord-voice-status.md) — show the current track title while playing and “silence, add a track” when joined but idle.
 - [Deleted-message history](deleted-message-history.md) — keep records server-scoped, moderator-only, and automatically expire them after 30 days.
 - [Mines rules and display](mines-owo-ui.md) — keep 1–8 mines with default 3, RTP-based payouts, and OwO’s in-card board presentation.
+- [Now Playing mentions](now-playing-mentions.md) — display the requester as a clickable Discord tag without sending a ping.
