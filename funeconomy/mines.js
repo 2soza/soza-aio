@@ -1,5 +1,6 @@
 const {
-    EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags
+    ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize,
+    ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags
 } = require('discord.js');
 const cfg = require('./config');
 const cooldown = require('./cooldown');
@@ -9,21 +10,18 @@ const {
     BOARD_SIZE, payoutFor, generateMinePositions, parseMineCount
 } = require('./minesMath');
 const {
-    fmt, displayName, send, sendTemporaryError, sendEmbed, resolveBet, errorLine,
+    fmt, displayName, send, sendTemporaryError, resolveBet, errorLine,
     acquireGambleLock, releaseGambleLock, onCooldown
 } = require('./utils');
 
 const BUTTON_PREFIX = 'fmn';
 const TERMINAL_STATES = new Set(['lost', 'cashed_out']);
 
-const interactionDisplayName = (interaction) =>
-    displayName({ member: interaction.member, author: interaction.user });
-
 function formatMultiplier(value) {
     return `${value.toFixed(2)}x`;
 }
 
-function render(game, name) {
+function render(game, userId) {
     const picks = game.revealed.length;
     const currentPayout = picks ? payoutFor(game.bet, game.mineCount, picks) : 0;
     const currentAmount = game.status === 'cashed_out' ? game.payout : currentPayout;
@@ -32,74 +30,81 @@ function render(game, name) {
         : null;
     const ended = TERMINAL_STATES.has(game.status);
 
-    let description;
+    let heading;
     if (game.status === 'lost') {
-        description = `💥 **${name} touched a mine!** Your bet was lost.`;
+        heading = `💥 **<@${userId}> touched a mine!**`;
     } else if (game.status === 'cashed_out') {
-        description = `💎 **${name} cashed out!**`;
+        heading = `💎 **<@${userId}> cashed out!**`;
+    } else if (picks === 0) {
+        heading = `💣 **<@${userId}> started a mines game.**`;
     } else {
-        description = `Choose a tile. Cash out after revealing a gem.`;
+        heading = `💣 **<@${userId}> is playing a mines game.**`;
     }
 
-    const currentLine = `${cfg.CASH_EMOJI} **${fmt(currentAmount)}** (${formatMultiplier(currentAmount / game.bet)})`;
-    const nextLine = nextPayout === null
+    const currentLabel = game.status === 'cashed_out' ? 'Winnings' : 'Cash Out';
+    const currentLine = `**${currentLabel}:** \`${fmt(currentAmount)}\` \`(${formatMultiplier(currentAmount / game.bet)})\``;
+    const nextValue = nextPayout === null
         ? '—'
-        : `${cfg.CASH_EMOJI} **${fmt(nextPayout)}** (${formatMultiplier(nextPayout / game.bet)})`;
-    const crossedOut = (value) => ended ? `~~${value}~~` : value;
+        : `\`${fmt(nextPayout)}\` \`(${formatMultiplier(nextPayout / game.bet)})\``;
+    const nextLine = `**Next:** ${nextValue}`;
+    const summary = [
+        `**Bet:** \`${fmt(game.bet)}\`　 **Mines:** \`${game.mineCount}\``,
+        game.status === 'lost' ? `~~${currentLine}~~` : currentLine,
+        ended ? `~~${nextLine}~~` : nextLine
+    ].join('\n');
 
-    return new EmbedBuilder()
-        .setColor(game.status === 'lost' ? 0xe74c3c : ended ? 0x2ecc71 : 0x5865f2)
-        .setTitle(`💣 ${name}'s Mines`)
-        .setDescription(description)
-        .addFields(
-            { name: 'Bet', value: `${cfg.CASH_EMOJI} **${fmt(game.bet)}**`, inline: true },
-            { name: 'Mines', value: `💣 **${game.mineCount}**`, inline: true },
-            {
-                name: game.status === 'cashed_out' ? 'Winnings' : 'Cash Out',
-                value: crossedOut(currentLine),
-                inline: true
-            },
-            {
-                name: 'Next',
-                value: crossedOut(nextLine),
-                inline: true
-            }
-        )
-        .setFooter({ text: `${picks} safe ${picks === 1 ? 'tile' : 'tiles'} revealed · 94% RTP` });
-}
+    const accentColor = game.status === 'lost'
+        ? 0x7a7a7a
+        : picks > 0 || game.status === 'cashed_out'
+            ? 0x2ee820
+            : 0x7ab8f5;
 
-function buildComponents(game) {
-    const ended = TERMINAL_STATES.has(game.status);
+    const container = new ContainerBuilder()
+        .setAccentColor(accentColor)
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(heading))
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(summary))
+        .addSeparatorComponents(
+            new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small)
+        );
+
     const mines = new Set(game.minePositions);
     const safeTiles = new Set(game.revealed);
-    const rows = [];
-
     for (let rowIndex = 0; rowIndex < 3; rowIndex += 1) {
         const row = new ActionRowBuilder();
         for (let column = 0; column < 3; column += 1) {
             const index = rowIndex * 3 + column;
             const isMine = mines.has(index);
             const isSafe = safeTiles.has(index);
+            const isHitMine = game.status === 'lost' && game.hitPosition === index;
             const button = new ButtonBuilder()
                 .setCustomId(`${BUTTON_PREFIX}:tile:${game.userId}:${index}`)
-                .setStyle(isMine && ended ? ButtonStyle.Danger : isSafe ? ButtonStyle.Success : ButtonStyle.Secondary)
+                .setStyle(isHitMine ? ButtonStyle.Danger : isSafe ? ButtonStyle.Success : ButtonStyle.Secondary)
                 .setDisabled(ended || isSafe);
-            if (isMine && ended) button.setEmoji('💥');
-            else if (isSafe) button.setEmoji('💎');
+
+            if (isMine && ended) button.setEmoji(isHitMine ? '💥' : '💣');
+            else if (isSafe || ended) button.setEmoji('💎');
             else button.setLabel('?');
             row.addComponents(button);
         }
-        rows.push(row);
+        container.addActionRowComponents(row);
     }
 
+    container.addSeparatorComponents(
+        new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small)
+    );
     const cashOut = new ButtonBuilder()
         .setCustomId(`${BUTTON_PREFIX}:cash:${game.userId}`)
         .setLabel('Cash Out')
         .setEmoji(cfg.CASH_EMOJI)
         .setStyle(ButtonStyle.Success)
-        .setDisabled(ended || game.revealed.length === 0);
-    rows.push(new ActionRowBuilder().addComponents(cashOut));
-    return rows;
+        .setDisabled(ended || picks === 0);
+    container.addActionRowComponents(new ActionRowBuilder().addComponents(cashOut));
+
+    return container;
+}
+
+function buildComponents(game) {
+    return [render(game, game.userId)];
 }
 
 async function retireOldMessage(client, game) {
@@ -114,7 +119,11 @@ async function retireOldMessage(client, game) {
 }
 
 async function postBoard(message, game, client) {
-    const sent = await sendEmbed(message, render(game, displayName(message)), buildComponents(game));
+    const sent = await message.channel.send({
+        components: buildComponents(game),
+        flags: MessageFlags.IsComponentsV2,
+        allowedMentions: { parse: [] }
+    });
     const attached = await Mines.findOneAndUpdate(
         { _id: game._id, userId: game.userId, status: 'playing', version: game.version },
         { $set: { channelId: message.channel.id, messageId: sent.id } },
@@ -175,10 +184,7 @@ async function sendCurrentBoard(interaction, game) {
     if (!game) return interaction.editReply({ components: [] });
     if (TERMINAL_STATES.has(game.status)) game = await completeGame(game);
     if (!game) return interaction.editReply({ components: [] });
-    return interaction.editReply({
-        embeds: [render(game, interactionDisplayName(interaction))],
-        components: buildComponents(game)
-    });
+    return interaction.editReply({ components: buildComponents(game) });
 }
 
 async function handleButton(interaction) {
@@ -207,13 +213,19 @@ async function handleButton(interaction) {
                 flags: MessageFlags.Ephemeral
             });
         }
+        if (!interaction.message.flags.has(MessageFlags.IsComponentsV2)) {
+            return interaction.reply({
+                content: `This board uses the old layout. Type \`${cfg.PREFIX}mines\` to resume it in the updated layout.`,
+                flags: MessageFlags.Ephemeral
+            });
+        }
 
         await interaction.deferUpdate();
         let active = game.status === 'pending' ? await prepareGame(ownerId, game) : game;
         if (!active) {
+            const failedGame = { ...game, status: 'lost', payout: 0 };
             return interaction.editReply({
-                embeds: [render({ ...game, status: 'lost', payout: 0 }, interactionDisplayName(interaction))],
-                components: buildComponents({ ...game, status: 'lost', payout: 0 })
+                components: buildComponents(failedGame)
             });
         }
         if (TERMINAL_STATES.has(active.status)) return sendCurrentBoard(interaction, active);
@@ -242,10 +254,7 @@ async function handleButton(interaction) {
                 return sendCurrentBoard(interaction, await Mines.findOne({ userId: ownerId }).lean());
             }
             const completed = await completeGame(finished);
-            return interaction.editReply({
-                embeds: [render(completed, interactionDisplayName(interaction))],
-                components: buildComponents(completed)
-            });
+            return interaction.editReply({ components: buildComponents(completed) });
         }
 
         const index = Number(rawIndex);
@@ -257,17 +266,14 @@ async function handleButton(interaction) {
         if (active.minePositions.includes(index)) {
             const finished = await Mines.findOneAndUpdate(
                 versionFilter,
-                { $set: { status: 'lost', payout: 0 }, $inc: { version: 1 } },
+                { $set: { status: 'lost', payout: 0, hitPosition: index }, $inc: { version: 1 } },
                 { new: true }
             ).lean();
             if (!finished) {
                 return sendCurrentBoard(interaction, await Mines.findOne({ userId: ownerId }).lean());
             }
             const completed = await completeGame(finished);
-            return interaction.editReply({
-                embeds: [render(completed, interactionDisplayName(interaction))],
-                components: buildComponents(completed)
-            });
+            return interaction.editReply({ components: buildComponents(completed) });
         }
 
         const revealed = [...active.revealed, index];
@@ -288,15 +294,9 @@ async function handleButton(interaction) {
         }
         if (clearedBoard) {
             const completed = await completeGame(updated);
-            return interaction.editReply({
-                embeds: [render(completed, interactionDisplayName(interaction))],
-                components: buildComponents(completed)
-            });
+            return interaction.editReply({ components: buildComponents(completed) });
         }
-        return interaction.editReply({
-            embeds: [render(updated, interactionDisplayName(interaction))],
-            components: buildComponents(updated)
-        });
+        return interaction.editReply({ components: buildComponents(updated) });
     } catch (error) {
         console.error('[FUNECONOMY] Mines button error:', error);
         const reply = {

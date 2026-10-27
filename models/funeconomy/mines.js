@@ -8,6 +8,7 @@ const minesSchema = new mongoose.Schema({
     mineCount: { type: Number, required: true, min: 1, max: 3 },
     minePositions: { type: [Number], required: true },
     revealed: { type: [Number], default: [] },
+    hitPosition: { type: Number, min: 0, max: 8, default: null },
     status: {
         type: String,
         enum: ['pending', 'playing', 'lost', 'cashed_out'],
