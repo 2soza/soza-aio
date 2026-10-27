@@ -16,6 +16,7 @@ const {
 
 const BUTTON_PREFIX = 'fmn';
 const TERMINAL_STATES = new Set(['lost', 'cashed_out']);
+const QUESTION_TILE_LABEL = '\u2002?\u2002';
 
 function formatMultiplier(value) {
     return `${value.toFixed(2)}x`;
@@ -83,7 +84,7 @@ function render(game, userId) {
 
             if (isMine && ended) button.setEmoji(isHitMine ? '💥' : '💣');
             else if (isSafe || ended) button.setEmoji('💎');
-            else button.setLabel('?');
+            else button.setLabel(QUESTION_TILE_LABEL);
             row.addComponents(button);
         }
         container.addActionRowComponents(row);
@@ -107,6 +108,13 @@ function buildComponents(game) {
     return [render(game, game.userId)];
 }
 
+function boardMessageOptions(game) {
+    return {
+        components: buildComponents(game),
+        allowedMentions: { parse: [] }
+    };
+}
+
 async function retireOldMessage(client, game) {
     if (!game.channelId || !game.messageId) return;
     try {
@@ -120,9 +128,8 @@ async function retireOldMessage(client, game) {
 
 async function postBoard(message, game, client) {
     const sent = await message.channel.send({
-        components: buildComponents(game),
+        ...boardMessageOptions(game),
         flags: MessageFlags.IsComponentsV2,
-        allowedMentions: { parse: [] }
     });
     const attached = await Mines.findOneAndUpdate(
         { _id: game._id, userId: game.userId, status: 'playing', version: game.version },
@@ -184,7 +191,7 @@ async function sendCurrentBoard(interaction, game) {
     if (!game) return interaction.editReply({ components: [] });
     if (TERMINAL_STATES.has(game.status)) game = await completeGame(game);
     if (!game) return interaction.editReply({ components: [] });
-    return interaction.editReply({ components: buildComponents(game) });
+    return interaction.editReply(boardMessageOptions(game));
 }
 
 async function handleButton(interaction) {
@@ -224,9 +231,7 @@ async function handleButton(interaction) {
         let active = game.status === 'pending' ? await prepareGame(ownerId, game) : game;
         if (!active) {
             const failedGame = { ...game, status: 'lost', payout: 0 };
-            return interaction.editReply({
-                components: buildComponents(failedGame)
-            });
+            return interaction.editReply(boardMessageOptions(failedGame));
         }
         if (TERMINAL_STATES.has(active.status)) return sendCurrentBoard(interaction, active);
 
@@ -254,7 +259,7 @@ async function handleButton(interaction) {
                 return sendCurrentBoard(interaction, await Mines.findOne({ userId: ownerId }).lean());
             }
             const completed = await completeGame(finished);
-            return interaction.editReply({ components: buildComponents(completed) });
+            return interaction.editReply(boardMessageOptions(completed));
         }
 
         const index = Number(rawIndex);
@@ -273,7 +278,7 @@ async function handleButton(interaction) {
                 return sendCurrentBoard(interaction, await Mines.findOne({ userId: ownerId }).lean());
             }
             const completed = await completeGame(finished);
-            return interaction.editReply({ components: buildComponents(completed) });
+            return interaction.editReply(boardMessageOptions(completed));
         }
 
         const revealed = [...active.revealed, index];
@@ -294,9 +299,9 @@ async function handleButton(interaction) {
         }
         if (clearedBoard) {
             const completed = await completeGame(updated);
-            return interaction.editReply({ components: buildComponents(completed) });
+            return interaction.editReply(boardMessageOptions(completed));
         }
-        return interaction.editReply({ components: buildComponents(updated) });
+        return interaction.editReply(boardMessageOptions(updated));
     } catch (error) {
         console.error('[FUNECONOMY] Mines button error:', error);
         const reply = {

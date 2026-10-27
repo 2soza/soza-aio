@@ -8,3 +8,4 @@
 - [Railway deployment](railway-deployment.md) — the user runs this Discord bot on Railway; provide production variable setup instructions there.
 - [Discord voice channel status](discord-voice-status.md) — show the current track title while playing and “silence, add a track” when joined but idle.
 - [Deleted-message history](deleted-message-history.md) — keep records server-scoped, moderator-only, and automatically expire them after 30 days.
+- [Mines visual behavior](mines-owo-ui.md) — preserve OwO’s in-card board, state colors, non-pinging player tag, and full-size hidden tiles.
