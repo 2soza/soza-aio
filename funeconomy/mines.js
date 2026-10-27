@@ -51,7 +51,7 @@ function render(game, userId) {
     const summary = [
         `-# **Bet:** \`${fmt(game.bet)}\`　 **Mines:** \`${game.mineCount}\``,
         game.status === 'lost' ? `-# ~~${currentLine}~~` : `-# ${currentLine}`,
-        ended ? `-# ~~${nextLine}~~` : `-# ${nextLine}
+        ended ? `-# ~~${nextLine}~~` : `-# ${nextLine}`
     ].join('\n');
 
     const accentColor = game.status === 'lost'
