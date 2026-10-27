@@ -6,6 +6,7 @@ const cfg = require('./config');
 const cooldown = require('./cooldown');
 const Mines = require('../models/funeconomy/mines');
 const Economy = require('../models/funeconomy/economy');
+const { ensureRegistered } = require('./register');
 const {
     BOARD_SIZE, payoutFor, generateMinePositions, parseMineCount
 } = require('./minesMath');
@@ -319,6 +320,8 @@ async function handleButton(interaction) {
 }
 
 async function startCommand(message, args, client) {
+    if (!(await ensureRegistered(message, client))) return;
+
     const userId = message.author.id;
     const name = displayName(message);
     if (!acquireGambleLock(userId)) return;
