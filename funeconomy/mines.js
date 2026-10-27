@@ -33,13 +33,13 @@ function render(game, userId) {
 
     let heading;
     if (game.status === 'lost') {
-        heading = `💥 **<@${userId}> touched a mine!**`;
+        heading = `### 💥 **<@${userId}> touched a mine!**`;
     } else if (game.status === 'cashed_out') {
-        heading = `💎 **<@${userId}> cashed out!**`;
+        heading = `### 💎 **<@${userId}> cashed out!**`;
     } else if (picks === 0) {
-        heading = `💣 **<@${userId}> started a mines game.**`;
+        heading = `### 💣 **<@${userId}> started a mines game.**`;
     } else {
-        heading = `💣 **<@${userId}> is playing a mines game.**`;
+        heading = `### 💣 **<@${userId}> is playing a mines game.**`;
     }
 
     const currentLabel = game.status === 'cashed_out' ? 'Winnings' : 'Cash Out';
@@ -47,9 +47,9 @@ function render(game, userId) {
     const nextValue = nextPayout === null
         ? '—'
         : `\`${fmt(nextPayout)}\` \`(${formatMultiplier(nextPayout / game.bet)})\``;
-    const nextLine = `**Next:** ${nextValue}`;
+    const nextLine = `Next: ${nextValue}`;
     const summary = [
-        `**Bet:** \`${fmt(game.bet)}\`　 **Mines:** \`${game.mineCount}\``,
+        `Bet: \`${fmt(game.bet)}\`　 Mines: \`${game.mineCount}\``,
         game.status === 'lost' ? `~~${currentLine}~~` : currentLine,
         ended ? `~~${nextLine}~~` : nextLine
     ].join('\n');
