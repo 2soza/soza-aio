@@ -20,7 +20,7 @@ function buildGetStarted() {
         `\`${p}daily\` · claim your daily ${cfg.CASH_NAME}`,
         `\`${p}cash\` · check your balance`,
         `\`${p}s <bet>\` · \`${p}cf <bet>\` · \`${p}bj <bet>\` · \`${p}mines <bet> [1-3, default 3]\``,
-        'Slots, coinflip, blackjack, and Mines'
+        'Slots, coinflip, blackjack, and Mines',
         `\`${p}lb\` · see the rankings`
     ].join('\n');
 }
