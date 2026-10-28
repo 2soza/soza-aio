@@ -834,6 +834,7 @@ module.exports = (client) => {
                 // retries failed). Autoplay on a destroyed player throws
                 // "Cannot read properties of null (reading 'establishing')".
                 if (
+                    !player.connected ||
                     !player.connection ||
                     client.riffy.players.get(player.guildId) !== player
                 ) return;
@@ -877,6 +878,7 @@ module.exports = (client) => {
                             playTimeoutMs: 20000,
                             isStillValid: () =>
                                 !player.__manualStop &&
+                                player.connected &&
                                 !!player.connection &&
                                 client.riffy.players.get(guildId) === player,
                             onAttemptFailed: (attempt, total, attemptError) => {

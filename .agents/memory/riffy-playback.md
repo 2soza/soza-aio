@@ -38,3 +38,9 @@ Riffy's autoplay implementation can resolve a track and call `play()` without aw
 **Why:** A rejected or stalled `play()` promise can occur after the autoplay method has already returned, producing a false success message and no `trackStart` embed.
 
 **How to apply:** Capture and await the internal play promise, bound the wait with a timeout, retry a few times, and keep the queue-end recovery guarded against re-entry.
+
+Before queue-end autoplay calls `player.play()`, require `player.connected` as well as a connection object and the same live player in Riffy's guild map. A truthy `player.connection` alone does not prove the voice connection was initiated.
+
+**Why:** The runtime reported “Player connection is not initiated” during autoplay even though the queue-end guard only checked for a connection object.
+
+**How to apply:** Check `player.connected` before autoplay starts and again through its validity callback so a disconnect during track resolution cancels playback.
