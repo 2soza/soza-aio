@@ -38,7 +38,7 @@ MUSIC_DEFAULT_VOLUME=90
 <ul>
   <li>Set <code>DISCORD_USER_ID</code> to the bot owner's Discord user ID. In Discord desktop, open <code>Server Settings → Integrations → [bot] → Commands</code> and allow <code>/msg</code> only for that member. Repeat this for each server.</li>
   <li>The command handler rejects every user whose ID does not match <code>DISCORD_USER_ID</code>. Discord administrators may still see commands because of Discord's built-in administrator override.</li>
-  <li>Attachment copies are limited to 8 MiB per message and retained with the message history. Older records may only have their original CDN link; an expired link cannot be recovered.</li>
+  <li>Saved attachments are returned as timestamped ZIP file downloads, not inline image previews. Copies are limited to 8 MiB per message and retained with the history. Older records may only have their original CDN link; an expired link cannot be recovered.</li>
 </ul>
 
 <h4>Step 2: Set Up Hosting Service</h4>

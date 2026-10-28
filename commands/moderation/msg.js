@@ -12,10 +12,10 @@ const {
     buildDeletedMessageQuery,
     fetchAttachmentBuffer
 } = require('../../utils/messageHistory');
+const { createZipArchive } = require('../../utils/zipArchive');
 
 const MAX_RESULTS = 5;
-const MAX_CONTENT_LENGTH = 700;
-const MAX_REPLY_FILES = 10;
+const MAX_CONTENT_LENGTH = 500;
 
 function cleanText(content) {
     return String(content || '')
@@ -115,6 +115,7 @@ module.exports = {
                 .setDescription(`${messages.length} result(s) · private to you`)
                 .setFooter({ text: `History is retained for up to ${RETENTION_DAYS} days.` });
             const files = [];
+            const historyFields = [];
             let replyBytes = 0;
 
             for (const [index, message] of messages.entries()) {
@@ -124,6 +125,7 @@ module.exports = {
                     ? (cleanText(message.content) || '_No text content_')
                     : '*Message content was not available when it was deleted.*';
                 const attachmentLines = [];
+                const archiveEntries = [];
 
                 for (const attachment of (message.attachments || []).slice(0, 3)) {
                     const originalName = safeFileName(attachment.name, 'attachment');
@@ -131,40 +133,54 @@ module.exports = {
 
                     if (
                         !data &&
-                        files.length < MAX_REPLY_FILES &&
                         replyBytes < MAX_ATTACHMENT_DOWNLOAD_BYTES
                     ) {
                         const remainingBytes = MAX_ATTACHMENT_DOWNLOAD_BYTES - replyBytes;
                         data = await fetchAttachmentBuffer(attachment, remainingBytes);
                     }
 
-                    if (
-                        data &&
-                        data.length <= MAX_ATTACHMENT_DOWNLOAD_BYTES - replyBytes &&
-                        files.length < MAX_REPLY_FILES
-                    ) {
-                        const fileName = safeFileName(`${index + 1}-${originalName}`, `file-${index + 1}`);
-                        files.push(new AttachmentBuilder(data, { name: fileName }));
-                        replyBytes += data.length;
-                        attachmentLines.push(`📎 ${originalName} · attached below`);
+                    if (data) {
+                        archiveEntries.push({
+                            name: safeFileName(`${archiveEntries.length + 1}-${originalName}`, `file-${archiveEntries.length + 1}`),
+                            data
+                        });
                     } else {
-                        attachmentLines.push(`📎 ${originalName} · download unavailable`);
+                        attachmentLines.push(`📎 ${originalName.slice(0, 80)} · download unavailable`);
+                    }
+                }
+
+                if (archiveEntries.length) {
+                    const deletedAt = new Date(message.deletedAt);
+                    const timestamp = deletedAt.toISOString()
+                        .replace(/[-:]/g, '')
+                        .replace(/\.\d{3}Z$/, 'Z');
+                    const messageIdSuffix = String(message.messageId || index + 1).slice(-6);
+                    const archiveName = `deleted-${timestamp}-${messageIdSuffix}.zip`;
+                    const archiveData = createZipArchive(archiveEntries, deletedAt);
+
+                    if (archiveData.length <= MAX_ATTACHMENT_DOWNLOAD_BYTES - replyBytes) {
+                        files.push(new AttachmentBuilder(archiveData, { name: archiveName }));
+                        replyBytes += archiveData.length;
+                        attachmentLines.push(`📦 \`${archiveName}\` · file below`);
+                    } else {
+                        attachmentLines.push('📦 Archive exceeds the response size limit');
                     }
                 }
 
                 const value = [
                     `<#${message.channelId}> · <t:${sentTimestamp}:f>`,
-                    `Deleted <t:${deletedTimestamp}:R>`,
+                    `Deleted <t:${deletedTimestamp}:f> · <t:${deletedTimestamp}:R>`,
                     '',
                     content,
                     ...attachmentLines
                 ].join('\n').slice(0, 1024);
 
-                embed.addFields({
+                historyFields.push({
                     name: `${index + 1}. ${String(message.authorTag || 'Unknown user').slice(0, 245)}`,
                     value
                 });
             }
+            embed.addFields(historyFields);
 
             return interaction.editReply({
                 embeds: [embed],
