@@ -32,3 +32,9 @@ The shared `/leave` and `.leave` path must also clear status before destroying a
 **Why:** `/join` and `.join` set the idle status on a Discord voice-only connection.
 
 **How to apply:** In `leaveFromContext`, send an empty status to the bot's current voice channel before destroying either its Riffy player or voice-only connection.
+
+The prefix `.stop` handler must clear the voice status before destroying the Riffy player, just like the slash music stop flow.
+
+**Why:** The prefix stop command has its own handler and does not rely on the slash command cleanup path.
+
+**How to apply:** In `excesscommands/other/stop.js`, use the player's voice channel ID when sending the empty status before `destroy()`.

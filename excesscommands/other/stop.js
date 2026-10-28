@@ -1,3 +1,5 @@
+const { setVoiceChannelStatus } = require('../../utils/voiceChannelStatus');
+
 function temporaryReply(message, content, timeout = 5000) {
     return message.reply(content).then(reply => {
         setTimeout(() => reply.delete().catch(() => {}), timeout);
@@ -34,6 +36,13 @@ module.exports = {
             }
 
             if (riffyPlayer) {
+                const voiceChannelId = riffyPlayer.voiceChannel || botVoiceChannel?.id;
+                await setVoiceChannelStatus(
+                    client,
+                    message.guild.id,
+                    '',
+                    voiceChannelId
+                );
                 riffyPlayer.__manualStop = true;
                 riffyPlayer.destroy();
             }
