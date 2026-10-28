@@ -906,12 +906,18 @@ module.exports = (client) => {
 
                     } catch (autoplayError) {
                         console.error('V2 Autoplay failed:', autoplayError);
-                        await setVoiceChannelStatus(
-                            client,
-                            guildId,
-                            IDLE_VOICE_STATUS,
-                            player.voiceChannel
-                        );
+                        // A timed-out play() promise may still be pending.
+                        // Destroy immediately so a late result cannot start
+                        // after the final retry has already been reported.
+                        player.__manualStop = true;
+                        try {
+                            const destroyResult = player.destroy();
+                            destroyResult?.catch?.((destroyError) => {
+                                console.warn(`[V2 AUTOPLAY] Player cleanup failed in guild ${guildId}:`, destroyError.message);
+                            });
+                        } catch (destroyError) {
+                            console.warn(`[V2 AUTOPLAY] Player cleanup failed in guild ${guildId}:`, destroyError.message);
+                        }
 
                         const failContainer = advancedMessageManager.createV2Container('warning')
                             .addTextDisplayComponents(
@@ -924,8 +930,6 @@ module.exports = (client) => {
                         });
 
                         advancedMessageManager.addQuickDeleteMessage(client, failMsg, 'autoplay_fail');
-
-                        player.destroy();
                     } finally {
                         player.__autoplayInProgress = false;
                     }
