@@ -1,5 +1,10 @@
 const DeletedMessage = require('../models/serverLogs/DeletedMessage');
-const { addRetention, createMessageSnapshot } = require('../utils/messageHistory');
+const {
+    MAX_ATTACHMENT_DOWNLOAD_BYTES,
+    addRetention,
+    createMessageSnapshot,
+    fetchAttachmentBuffer
+} = require('../utils/messageHistory');
 
 const pendingWrites = new Map();
 
@@ -23,6 +28,23 @@ function archiveMessage(message) {
     if (!snapshot || !snapshot.contentAvailable) return Promise.resolve(false);
 
     return serializeMessageWrite(snapshot.guildId, snapshot.messageId, async () => {
+        let remainingBytes = MAX_ATTACHMENT_DOWNLOAD_BYTES;
+        const sourceAttachments = message.attachments
+            ? [...message.attachments.values()]
+            : [];
+
+        for (const [index, attachment] of sourceAttachments.entries()) {
+            if (remainingBytes <= 0) break;
+            const declaredSize = Number(attachment.size) || 0;
+            if (declaredSize > remainingBytes) continue;
+
+            const data = await fetchAttachmentBuffer(attachment, remainingBytes);
+            if (!data) continue;
+
+            snapshot.attachments[index].data = data;
+            remainingBytes -= data.length;
+        }
+
         const expiresAt = addRetention(snapshot.sentAt);
         await DeletedMessage.updateOne(
             { guildId: snapshot.guildId, messageId: snapshot.messageId },
@@ -44,19 +66,15 @@ function markMessageDeleted(message, deletedAt = new Date()) {
     if (!snapshot) return Promise.resolve(false);
 
     return serializeMessageWrite(snapshot.guildId, snapshot.messageId, async () => {
+        const { attachments, ...snapshotWithoutAttachments } = snapshot;
         const update = snapshot.contentAvailable
-            ? { $set: { ...snapshot, deletedAt } }
+            ? {
+                $set: { ...snapshotWithoutAttachments, deletedAt },
+                $setOnInsert: { attachments }
+            }
             : {
                 $set: { deletedAt },
-                $setOnInsert: {
-                    channelId: snapshot.channelId,
-                    authorId: snapshot.authorId,
-                    authorTag: snapshot.authorTag,
-                    content: snapshot.content,
-                    contentAvailable: snapshot.contentAvailable,
-                    attachments: snapshot.attachments,
-                    sentAt: snapshot.sentAt
-                }
+                $setOnInsert: snapshot
             };
         update.$max = { expiresAt: addRetention(deletedAt) };
 

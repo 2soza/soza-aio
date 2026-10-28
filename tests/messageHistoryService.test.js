@@ -54,6 +54,28 @@ test('active messages are archived per server and expire 30 days after sending',
     assert.deepEqual(options, { upsert: true });
 });
 
+test('deleted-message records archive downloadable attachments within the storage limit', async () => {
+    writes.length = 0;
+    const originalFetch = global.fetch;
+    global.fetch = async () => new Response(Buffer.from('image-bytes'));
+    const message = createMessage({
+        attachments: new Map([['attachment-1', {
+            name: 'image.png',
+            url: 'https://cdn.discordapp.com/attachments/123/456/image.png',
+            size: 11,
+            contentType: 'image/png'
+        }]])
+    });
+
+    try {
+        assert.equal(await messageHistoryService.archiveMessage(message), true);
+        const [, update] = writes[0];
+        assert.equal(update.$set.attachments[0].data.toString(), 'image-bytes');
+    } finally {
+        global.fetch = originalFetch;
+    }
+});
+
 test('deleting a message retains it for 30 days after deletion', async () => {
     writes.length = 0;
     const message = createMessage();
@@ -66,6 +88,8 @@ test('deleting a message retains it for 30 days after deletion', async () => {
     assert.equal(update.$set.deletedAt.getTime(), deletedAt.getTime());
     assert.equal(update.$set.content, message.content);
     assert.equal(update.$max.expiresAt.getTime(), addRetention(deletedAt).getTime());
+    assert.equal(update.$set.attachments, undefined);
+    assert.deepEqual(update.$setOnInsert.attachments, []);
 });
 
 test('partial deletion events do not overwrite previously archived content', async () => {

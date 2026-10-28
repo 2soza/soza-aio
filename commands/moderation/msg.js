@@ -1,33 +1,53 @@
 const {
     SlashCommandBuilder,
-    PermissionFlagsBits,
     MessageFlags,
-    EmbedBuilder
+    EmbedBuilder,
+    AttachmentBuilder
 } = require('discord.js');
 const DeletedMessage = require('../../models/serverLogs/DeletedMessage');
-const { RETENTION_DAYS, buildDeletedMessageQuery } = require('../../utils/messageHistory');
+const { getBotOwnerId, isBotOwner } = require('../../utils/botOwnerOnly');
+const {
+    MAX_ATTACHMENT_DOWNLOAD_BYTES,
+    RETENTION_DAYS,
+    buildDeletedMessageQuery,
+    fetchAttachmentBuffer
+} = require('../../utils/messageHistory');
 
 const MAX_RESULTS = 5;
 const MAX_CONTENT_LENGTH = 700;
+const MAX_REPLY_FILES = 10;
 
-function toCodeBlock(content) {
-    const safeContent = String(content || '')
-        .replace(/```/g, '`\u200b``')
+function cleanText(content) {
+    return String(content || '')
+        .replace(/@(everyone|here)/gi, '@\u200b$1')
         .slice(0, MAX_CONTENT_LENGTH);
-    return `\`\`\`\n${safeContent}\n\`\`\``;
 }
 
-function formatAttachment(attachment) {
-    const name = String(attachment.name || 'attachment').replace(/[\[\]()]/g, '');
-    if (attachment.url) return `• [${name}](<${attachment.url}>)`;
-    return `• ${name}`;
+function safeFileName(name, fallback) {
+    const cleaned = String(name || fallback)
+        .replace(/[\u0000-\u001f\u007f]/g, '')
+        .replace(/[\\/]/g, '_')
+        .replace(/\.\./g, '_')
+        .trim()
+        .slice(0, 100);
+    return cleaned || fallback;
+}
+
+function getStoredBuffer(value) {
+    if (Buffer.isBuffer(value)) return value;
+    if (value?._bsontype === 'Binary' && typeof value.value === 'function') {
+        return Buffer.from(value.value());
+    }
+    return null;
 }
 
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('msg')
         .setDescription('View deleted message history for this server')
-        .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages)
+        // Disable for regular members by default. Allow the bot owner explicitly
+        // in Server Settings > Integrations > this bot > Commands.
+        .setDefaultMemberPermissions(0n)
         .addSubcommand(subcommand => subcommand
             .setName('history')
             .setDescription('View recently deleted messages')
@@ -54,9 +74,15 @@ module.exports = {
             });
         }
 
-        if (!interaction.memberPermissions?.has(PermissionFlagsBits.ManageMessages)) {
+        if (!getBotOwnerId()) {
             return interaction.reply({
-                content: 'You need the Manage Messages permission to view deleted message history.',
+                content: 'This command is disabled. Set DISCORD_USER_ID to the bot owner’s Discord user ID.',
+                flags: MessageFlags.Ephemeral
+            });
+        }
+        if (!isBotOwner(interaction)) {
+            return interaction.reply({
+                content: 'Only the configured bot owner can view deleted message history.',
                 flags: MessageFlags.Ephemeral
             });
         }
@@ -74,6 +100,7 @@ module.exports = {
             const messages = await DeletedMessage.find(query)
                 .sort({ deletedAt: -1 })
                 .limit(limit)
+                .select('+attachments.data')
                 .lean();
 
             if (!messages.length) {
@@ -84,34 +111,64 @@ module.exports = {
 
             const embed = new EmbedBuilder()
                 .setColor(0x5865f2)
-                .setTitle('Recently deleted messages')
-                .setDescription(`Showing ${messages.length} message(s) from this server. This private result is visible only to you.`)
-                .setFooter({ text: `Deleted-message history is retained for up to ${RETENTION_DAYS} days.` });
+                .setTitle('Deleted messages')
+                .setDescription(`${messages.length} result(s) · private to you`)
+                .setFooter({ text: `History is retained for up to ${RETENTION_DAYS} days.` });
+            const files = [];
+            let replyBytes = 0;
 
             for (const [index, message] of messages.entries()) {
                 const sentTimestamp = Math.floor(new Date(message.sentAt).getTime() / 1000);
                 const deletedTimestamp = Math.floor(new Date(message.deletedAt).getTime() / 1000);
                 const content = message.contentAvailable
-                    ? (message.content || '*No text content*')
+                    ? (cleanText(message.content) || '_No text content_')
                     : '*Message content was not available when it was deleted.*';
-                const attachmentLines = (message.attachments || [])
-                    .slice(0, 3)
-                    .map(formatAttachment);
+                const attachmentLines = [];
+
+                for (const attachment of (message.attachments || []).slice(0, 3)) {
+                    const originalName = safeFileName(attachment.name, 'attachment');
+                    let data = getStoredBuffer(attachment.data);
+
+                    if (
+                        !data &&
+                        files.length < MAX_REPLY_FILES &&
+                        replyBytes < MAX_ATTACHMENT_DOWNLOAD_BYTES
+                    ) {
+                        const remainingBytes = MAX_ATTACHMENT_DOWNLOAD_BYTES - replyBytes;
+                        data = await fetchAttachmentBuffer(attachment, remainingBytes);
+                    }
+
+                    if (
+                        data &&
+                        data.length <= MAX_ATTACHMENT_DOWNLOAD_BYTES - replyBytes &&
+                        files.length < MAX_REPLY_FILES
+                    ) {
+                        const fileName = safeFileName(`${index + 1}-${originalName}`, `file-${index + 1}`);
+                        files.push(new AttachmentBuilder(data, { name: fileName }));
+                        replyBytes += data.length;
+                        attachmentLines.push(`📎 ${originalName} · attached below`);
+                    } else {
+                        attachmentLines.push(`📎 ${originalName} · download unavailable`);
+                    }
+                }
+
                 const value = [
-                    `**Channel:** <#${message.channelId}>`,
-                    `**Sent:** <t:${sentTimestamp}:f> · **Deleted:** <t:${deletedTimestamp}:R>`,
-                    toCodeBlock(content),
+                    `<#${message.channelId}> · <t:${sentTimestamp}:f>`,
+                    `Deleted <t:${deletedTimestamp}:R>`,
+                    '',
+                    content,
                     ...attachmentLines
                 ].join('\n').slice(0, 1024);
 
                 embed.addFields({
-                    name: `${index + 1}. ${message.authorTag || 'Unknown user'}`,
+                    name: `${index + 1}. ${String(message.authorTag || 'Unknown user').slice(0, 245)}`,
                     value
                 });
             }
 
             return interaction.editReply({
                 embeds: [embed],
+                files,
                 allowedMentions: { parse: [] }
             });
         } catch (error) {

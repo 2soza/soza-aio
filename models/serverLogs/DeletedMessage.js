@@ -4,7 +4,8 @@ const AttachmentSchema = new mongoose.Schema({
     name: { type: String, default: 'attachment' },
     url: { type: String, default: '' },
     size: { type: Number, default: 0 },
-    contentType: { type: String, default: '' }
+    contentType: { type: String, default: '' },
+    data: { type: Buffer, select: false }
 }, { _id: false });
 
 const DeletedMessageSchema = new mongoose.Schema({
