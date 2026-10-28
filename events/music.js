@@ -468,7 +468,13 @@ module.exports = (client) => {
                 if (oldState.member?.id === client.user.id && oldState.channelId && !newState.channelId) {
                     const player = client.riffy.players.get(oldState.guild.id);
                     if (player) {
-                        await handlePlayerCleanup(client, oldState.guild.id, player, 'Bot disconnected');
+                        await handlePlayerCleanup(
+                            client,
+                            oldState.guild.id,
+                            player,
+                            'Bot disconnected',
+                            oldState.channelId
+                        );
                     }
                 }
 
@@ -488,7 +494,13 @@ module.exports = (client) => {
 
                     const player = client.riffy.players.get(oldState.guild.id);
                     if (player) {
-                        await handlePlayerCleanup(client, oldState.guild.id, player, 'Channel empty - Auto disconnect');
+                        await handlePlayerCleanup(
+                            client,
+                            oldState.guild.id,
+                            player,
+                            'Channel empty - Auto disconnect',
+                            oldState.channelId
+                        );
 
                         const channel = client.channels.cache.get(player.textChannel);
                         if (channel) {
@@ -1997,11 +2009,20 @@ module.exports = (client) => {
             }
         }
 
-        async function handlePlayerCleanup(client, guildId, player, reason) {
+        async function handlePlayerCleanup(client, guildId, player, reason, voiceChannelIdHint = null) {
             try {
                 //console.log(`🧹 Starting complete cleanup for guild ${guildId}: ${reason}`);
 
-             
+                const currentPlayer = client.riffy?.players?.get?.(guildId);
+                if (!currentPlayer || currentPlayer === player) {
+                    const voiceChannelId = voiceChannelIdHint
+                        || player?.voiceChannel
+                        || client.guilds.cache.get(guildId)?.members.me?.voice?.channelId;
+                    if (voiceChannelId) {
+                        await setVoiceChannelStatus(client, guildId, '', voiceChannelId);
+                    }
+                }
+
                 lyricsStateManager.clearGuild(guildId);
 
                 await advancedMessageManager.cleanupGuildMessages(client, guildId);

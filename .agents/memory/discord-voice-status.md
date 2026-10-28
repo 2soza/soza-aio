@@ -20,3 +20,9 @@ If Discord's Audit Log records the new status text but a client still displays t
 **Why:** The Audit Log showed the exact new track status while the Android voice-channel list continued showing the previous playlist title.
 
 **How to apply:** Treat the Audit Log entry as evidence of a successful write; ask the user to refresh or compare another Discord client when only the visible status is stale.
+
+When a music player leaves voice, clear the channel status by sending an empty status through `setVoiceChannelStatus` before destroying the player. For an unexpected disconnect, use the channel ID from the old voice state; the bot may need `MANAGE_CHANNELS` because it is no longer connected.
+
+**Why:** The user reported that track and idle statuses remained visible after the bot left voice.
+
+**How to apply:** Clear status in centralized player cleanup, preserve stale-player protection so a replacement player is not cleared, and check the `[VoiceStatus]` warning if Discord rejects the update.
