@@ -269,6 +269,10 @@ async function leaveFromContext(context, client) {
         throw new Error('Masuk ke voice channel bot terlebih dahulu untuk menggunakan leave.');
     }
 
+    // Remove the idle/music status while the bot is still connected; a
+    // voice-only join has no Riffy playerDestroy event to clear it later.
+    await setVoiceChannelStatus(client, guild.id, '', botVoiceChannelId);
+
     if (player) await player.destroy().catch(() => {});
     releaseVoiceOnlyConnection(client, guild.id);
 

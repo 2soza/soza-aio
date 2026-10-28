@@ -26,3 +26,9 @@ When a music player leaves voice, clear the channel status by sending an empty s
 **Why:** The user reported that track and idle statuses remained visible after the bot left voice.
 
 **How to apply:** Clear status in centralized player cleanup, preserve stale-player protection so a replacement player is not cleared, and check the `[VoiceStatus]` warning if Discord rejects the update.
+
+The shared `/leave` and `.leave` path must also clear status before destroying a voice-only connection; those sessions have no Riffy `playerDestroy` event to clear it.
+
+**Why:** `/join` and `.join` set the idle status on a Discord voice-only connection.
+
+**How to apply:** In `leaveFromContext`, send an empty status to the bot's current voice channel before destroying either its Riffy player or voice-only connection.
