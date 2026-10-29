@@ -10,7 +10,7 @@ const FunEconomy = require('../models/funeconomy/schema');
 const BUTTON_PREFIX = 'flb';
 const PER_PAGE = 10;
 const ACCENT = 0x7ab8f5;
-const MEDALS = ['🥇', '🥈', '🥉'];
+const MEDALS = ['<:top1_gold:1565277029161631754>', '<:top2_silver:1565277044386963546>', '<:top3_bronze:1565277040163422219>'];
 
 const scopeFilter = (scope, guildId) => (scope === 'guild' ? { guildIds: guildId } : {});
 const baseFilter = (scope, guildId) => ({ cash: { $gt: 0 }, ...scopeFilter(scope, guildId) });
@@ -70,11 +70,11 @@ async function build(client, guild, viewer, state) {
     const title = scope === 'guild'
         ? `${escapeMarkdown(guild.name)} ${cfg.CASH_NAME} Leaderboard`
         : `Global ${cfg.CASH_NAME} Leaderboard`;
-    const header = `## ${cfg.EMOJI.TOP} ${title}\nLeaderboard for the amount of ${cfg.CASH_NAME} you have.`;
+    const header = `## <:cash:1555123079406026832> ${title}\nLeaderboard for the amount of ${cfg.CASH_NAME} you have.`;
 
     const pct = topPercent(mine.rank, data.total);
     const stats = [
-        '### 📊 Your Current Stats',
+        '### <:trackstats:1563476992853278830> Your Current Stats',
         `**User:** @${escapeMarkdown(viewer.username)}`,
         `**Rank:** ${mine.rank ? `#${fmt(mine.rank)} *(Top ${pct}%)*` : 'Unranked'}`,
         `**${cfg.CASH_NAME[0].toUpperCase()}${cfg.CASH_NAME.slice(1)}:** ${fmt(mine.cash)}`
@@ -88,7 +88,7 @@ async function build(client, guild, viewer, state) {
         const you = row.userId === viewer.id ? ' ◀' : '';
         return `${prefix} ${name}${you}\n-# ${cfg.CASH_NAME}: \`${fmt(row.cash)}\``;
     }));
-    const rankings = `### 🏆 Rankings\n${lines.length ? lines.join('\n') : 'Nobody is on this leaderboard yet!'}`;
+    const rankings = `### <:trophy_gold:1565277035880910848> Rankings\n${lines.length ? lines.join('\n') : 'Nobody is on this leaderboard yet!'}`;
 
     const nowSec = Math.floor(Date.now() / 1000);
     const footer = `-# Last updated: <t:${nowSec}:R> • Total players: ${fmt(data.total)}`;
@@ -101,21 +101,21 @@ async function build(client, guild, viewer, state) {
         .addSeparatorComponents(divider())
         .addTextDisplayComponents(new TextDisplayBuilder().setContent(stats))
         .addActionRowComponents(new ActionRowBuilder().addComponents(
-            btn(id('me', myPage ?? 1), { label: 'My Rank', emoji: '🔍', disabled: !myPage || myPage === data.page })
+            btn(id('me', myPage ?? 1), { label: 'My Rank', emoji: '<:myrank:1565277033804603512>', disabled: !myPage || myPage === data.page })
         ))
         .addSeparatorComponents(divider())
         .addTextDisplayComponents(new TextDisplayBuilder().setContent(rankings))
         .addActionRowComponents(new ActionRowBuilder().addComponents(
-            btn(id('top', 1), { label: 'Top', emoji: '📊', disabled: data.page === 1 })
+            btn(id('top', 1), { label: 'Top', emoji: '<:trackstats:1563476992853278830>', disabled: data.page === 1 })
         ))
         .addSeparatorComponents(divider())
         .addTextDisplayComponents(new TextDisplayBuilder().setContent(footer))
         .addActionRowComponents(new ActionRowBuilder().addComponents(
-            btn(id('first', 1), { emoji: '⏪', disabled: data.page === 1 }),
-            btn(id('prev', data.page - 1), { emoji: '◀️', disabled: data.page === 1 }),
+            btn(id('first', 1), { emoji: '<:rewind:1565277037743181914>', disabled: data.page === 1 }),
+            btn(id('prev', data.page - 1), { emoji: '<:previous:1565277042201591848>', disabled: data.page === 1 }),
             btn(id('page', data.page), { label: `${fmt(data.page)}/${fmt(data.pages)}`, disabled: true }),
-            btn(id('next', data.page + 1), { emoji: '▶️', disabled: data.page >= data.pages }),
-            btn(id('last', data.pages), { emoji: '⏩', disabled: data.page >= data.pages })
+            btn(id('next', data.page + 1), { emoji: '<:next:1565277026783592568>', disabled: data.page >= data.pages }),
+            btn(id('last', data.pages), { emoji: '<:fastforward:1565277031451861042>', disabled: data.page >= data.pages })
         ));
 
     return { components: [container], allowedMentions: { parse: [] } };
