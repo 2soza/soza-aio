@@ -61,16 +61,16 @@ function createHistoryContainer(messages, filters = {}) {
     const container = new ContainerBuilder()
         .setAccentColor(0xdc92ff)
         .addTextDisplayComponents(
-            new TextDisplayBuilder().setContent('**🗂️ MESSAGE HISTORY**')
+            new TextDisplayBuilder().setContent('**<:messagehistory:1565185242409738240> MESSAGE HISTORY**')
         )
         .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
 
     const summary = [
-        `**📊 Results:** ${messages.length} deleted message(s)`,
-        `**👤 User filter:** ${filters.userId ? `<@${filters.userId}>` : 'All users'}`,
-        `**#️⃣ Channel filter:** ${filters.channelId ? `<#${filters.channelId}>` : 'All channels'}`,
-        `**🕒 Retention:** ${RETENTION_DAYS} days`,
-        '**🔒 Visibility:** Only you'
+        `**<:results:1565185256947195934> Results:** ${messages.length} deleted message(s)`,
+        `**<:requestedby:1563476988105195583> User filter:** ${filters.userId ? `<@${filters.userId}>` : 'All users'}`,
+        `**<:channel:1565185263737638932> Channel filter:** ${filters.channelId ? `<#${filters.channelId}>` : 'All channels'}`,
+        `**<:retention:1565185244993421372> Retention:** ${RETENTION_DAYS} days`,
+        '**<:visibility:1565185236721995979> Visibility:** Only you'
     ].join('\n');
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(summary));
 
@@ -82,12 +82,12 @@ function createHistoryContainer(messages, filters = {}) {
             ? (cleanText(message.content) || '_No text content_')
             : '_Content was not available when it was deleted._';
         const lines = [
-            `**💬 MESSAGE #${index + 1}**`,
-            `**👤 Author:** ${message.authorId ? `<@${message.authorId}>` : ''} \`${String(message.authorTag || 'Unknown user').slice(0, 100)}\``,
-            `**#️⃣ Channel:** <#${message.channelId}>`,
-            `**📤 Sent:** ${formatTime(message.sentAt)}`,
-            `**🗑️ Deleted:** ${formatTime(message.deletedAt)}`,
-            `**📝 Content:**`,
+            `**<:message:1565185252199104602> MESSAGE #${index + 1}**`,
+            `**<:requestedby:1563476988105195583> Author:** ${message.authorId ? `<@${message.authorId}>` : ''} \`${String(message.authorTag || 'Unknown user').slice(0, 100)}\``,
+            `**<:channel:1565185263737638932> Channel:** <#${message.channelId}>`,
+            `**<:sent:1565185259707043860> Sent:** ${formatTime(message.sentAt)}`,
+            `**<:deleted:1565185261720309791> Deleted:** ${formatTime(message.deletedAt)}`,
+            `**<:content:1565185247132258305> Content:**`,
             content.split('\n').map(line => `> ${line}`).join('\n'),
             ...(message.historyAttachmentLines || [])
         ];
@@ -251,10 +251,10 @@ module.exports = {
                     if (archiveData.length <= MAX_ATTACHMENT_DOWNLOAD_BYTES - replyBytes) {
                         files.push(new AttachmentBuilder(archiveData, { name: archiveName }));
                         replyBytes += archiveData.length;
-                        attachmentLines.push('**📦 File:** download below');
+                        attachmentLines.push('**<:file:1565185234629173328> File:** download below');
                         fileNames.push(archiveName);
                     } else {
-                        attachmentLines.push('📦 Archive exceeds the response size limit');
+                        attachmentLines.push('<:file:1565185234629173328> Archive exceeds the response size limit');
                     }
                 }
 
