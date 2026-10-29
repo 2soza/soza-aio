@@ -5,7 +5,8 @@ const {
     ContainerBuilder,
     TextDisplayBuilder,
     SeparatorBuilder,
-    SeparatorSpacingSize
+    SeparatorSpacingSize,
+    FileBuilder
 } = require('discord.js');
 const DeletedMessage = require('../../models/serverLogs/DeletedMessage');
 const { getBotOwnerId, isBotOwner } = require('../../utils/botOwnerOnly');
@@ -100,6 +101,14 @@ function createHistoryContainer(messages, filters = {}) {
         container
             .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
             .addTextDisplayComponents(new TextDisplayBuilder().setContent(block));
+
+        // Components V2 hides uploaded files unless a File component points
+        // at them, so place each archive directly under its message.
+        for (const fileName of message.historyFileNames || []) {
+            container.addFileComponents(
+                new FileBuilder().setURL(`attachment://${fileName}`)
+            );
+        }
     }
 
     if (shown < messages.length) {
@@ -206,6 +215,7 @@ module.exports = {
             for (const [index, message] of messages.entries()) {
                 const attachmentLines = [];
                 const archiveEntries = [];
+                const fileNames = [];
 
                 for (const attachment of (message.attachments || []).slice(0, 3)) {
                     const originalName = safeFileName(attachment.name, 'attachment');
@@ -241,7 +251,8 @@ module.exports = {
                     if (archiveData.length <= MAX_ATTACHMENT_DOWNLOAD_BYTES - replyBytes) {
                         files.push(new AttachmentBuilder(archiveData, { name: archiveName }));
                         replyBytes += archiveData.length;
-                        attachmentLines.push(`**📦 File:** \`${archiveName}\` (attached above)`);
+                        attachmentLines.push('**📦 File:** download below');
+                        fileNames.push(archiveName);
                     } else {
                         attachmentLines.push('📦 Archive exceeds the response size limit');
                     }
@@ -249,7 +260,8 @@ module.exports = {
 
                 historyMessages.push({
                     ...message,
-                    historyAttachmentLines: attachmentLines
+                    historyAttachmentLines: attachmentLines,
+                    historyFileNames: fileNames
                 });
             }
 
