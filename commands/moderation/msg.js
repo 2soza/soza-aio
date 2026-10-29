@@ -44,42 +44,70 @@ function getStoredBuffer(value) {
     return null;
 }
 
-function createHistoryContainer(messages) {
+const MAX_COMPONENT_TEXT = 3800; // Components V2 allows 4000 characters total
+
+function toUnix(date) {
+    const time = new Date(date).getTime();
+    return Number.isFinite(time) ? Math.floor(time / 1000) : null;
+}
+
+function formatTime(date) {
+    const ts = toUnix(date);
+    return ts ? `<t:${ts}:f> (<t:${ts}:R>)` : 'Unknown';
+}
+
+function createHistoryContainer(messages, filters = {}) {
     const container = new ContainerBuilder()
-        .setAccentColor(0x5865f2)
+        .setAccentColor(0xdc92ff)
         .addTextDisplayComponents(
-            new TextDisplayBuilder().setContent(
-                `## Deleted messages\n${messages.length} result(s) · private to you\nHistory is retained for up to ${RETENTION_DAYS} days.`
-            )
-        );
+            new TextDisplayBuilder().setContent('**🗂️ MESSAGE HISTORY**')
+        )
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small));
+
+    const summary = [
+        `**📊 Results:** ${messages.length} deleted message(s)`,
+        `**👤 User filter:** ${filters.userId ? `<@${filters.userId}>` : 'All users'}`,
+        `**#️⃣ Channel filter:** ${filters.channelId ? `<#${filters.channelId}>` : 'All channels'}`,
+        `**🕒 Retention:** ${RETENTION_DAYS} days`,
+        '**🔒 Visibility:** Only you'
+    ].join('\n');
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(summary));
+
+    let used = summary.length + 40;
+    let shown = 0;
 
     for (const [index, message] of messages.entries()) {
-        if (index > 0) {
-            container.addSeparatorComponents(
-                new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small)
-            );
-        }
-
-        const sentTimestamp = Math.floor(new Date(message.sentAt).getTime() / 1000);
-        const deletedTimestamp = Math.floor(new Date(message.deletedAt).getTime() / 1000);
         const content = message.contentAvailable
             ? (cleanText(message.content) || '_No text content_')
-            : '*Message content was not available when it was deleted.*';
-        const details = [
-            `### ${index + 1}. ${String(message.authorTag || 'Unknown user').slice(0, 200)}`,
-            `<#${message.channelId}> · **Sent:** <t:${sentTimestamp}:f>`,
-            `**Deleted:** <t:${deletedTimestamp}:f> · <t:${deletedTimestamp}:R>`,
-            '',
-            content
+            : '_Content was not available when it was deleted._';
+        const lines = [
+            `**💬 MESSAGE #${index + 1}**`,
+            `**👤 Author:** ${message.authorId ? `<@${message.authorId}>` : ''} \`${String(message.authorTag || 'Unknown user').slice(0, 100)}\``,
+            `**#️⃣ Channel:** <#${message.channelId}>`,
+            `**📤 Sent:** ${formatTime(message.sentAt)}`,
+            `**🗑️ Deleted:** ${formatTime(message.deletedAt)}`,
+            `**📝 Content:**`,
+            content.split('\n').map(line => `> ${line}`).join('\n'),
+            ...(message.historyAttachmentLines || [])
         ];
+        let block = lines.join('\n');
+        const remaining = MAX_COMPONENT_TEXT - used;
+        if (remaining < 200) break;
+        if (block.length > remaining) block = block.slice(0, remaining - 3) + '...';
+        used += block.length;
+        shown++;
 
-        for (const attachmentLine of message.historyAttachmentLines || []) {
-            details.push(attachmentLine);
-        }
+        container
+            .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
+            .addTextDisplayComponents(new TextDisplayBuilder().setContent(block));
+    }
 
-        container.addTextDisplayComponents(
-            new TextDisplayBuilder().setContent(details.join('\n').slice(0, 4000))
-        );
+    if (shown < messages.length) {
+        container
+            .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
+            .addTextDisplayComponents(new TextDisplayBuilder().setContent(
+                `_${messages.length - shown} more message(s) hidden — use a smaller limit or a filter._`
+            ));
     }
 
     return container;
@@ -87,13 +115,11 @@ function createHistoryContainer(messages) {
 
 function createStatusContainer(message) {
     return new ContainerBuilder()
-        .setAccentColor(0x5865f2)
+        .setAccentColor(0xdc92ff)
         .addTextDisplayComponents(
-            new TextDisplayBuilder().setContent('## Deleted messages')
+            new TextDisplayBuilder().setContent('**🗂️ MESSAGE HISTORY**')
         )
-        .addSeparatorComponents(
-            new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small)
-        )
+        .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
         .addTextDisplayComponents(
             new TextDisplayBuilder().setContent(message)
         );
@@ -145,9 +171,10 @@ module.exports = {
             });
         }
 
-        await interaction.deferReply({
-            flags: MessageFlags.Ephemeral | MessageFlags.IsComponentsV2
-        });
+        // A deferred reply only accepts the Ephemeral flag. Passing
+        // IsComponentsV2 here makes Discord reject the defer, which surfaced
+        // as the generic "An error occurred" message.
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
         try {
             const user = interaction.options.getUser('user');
@@ -165,6 +192,7 @@ module.exports = {
 
             if (!messages.length) {
                 return interaction.editReply({
+                    flags: MessageFlags.IsComponentsV2,
                     components: [createStatusContainer(
                         'No deleted messages were found for those filters. History starts after the bot records messages.'
                     )]
@@ -213,7 +241,7 @@ module.exports = {
                     if (archiveData.length <= MAX_ATTACHMENT_DOWNLOAD_BYTES - replyBytes) {
                         files.push(new AttachmentBuilder(archiveData, { name: archiveName }));
                         replyBytes += archiveData.length;
-                        attachmentLines.push(`📦 **File:** \`${archiveName}\` (attached above)`);
+                        attachmentLines.push(`**📦 File:** \`${archiveName}\` (attached above)`);
                     } else {
                         attachmentLines.push('📦 Archive exceeds the response size limit');
                     }
@@ -226,13 +254,18 @@ module.exports = {
             }
 
             return interaction.editReply({
-                components: [createHistoryContainer(historyMessages)],
+                flags: MessageFlags.IsComponentsV2,
+                components: [createHistoryContainer(historyMessages, {
+                    userId: user?.id,
+                    channelId: channel?.id
+                })],
                 files,
                 allowedMentions: { parse: [] }
             });
         } catch (error) {
             console.error(`[MessageHistory] Could not load history for guild ${interaction.guildId}:`, error);
             return interaction.editReply({
+                flags: MessageFlags.IsComponentsV2,
                 components: [createStatusContainer(
                     'Could not load message history right now. Please try again later.'
                 )]
