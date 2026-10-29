@@ -75,9 +75,9 @@ async function build(client, guild, viewer, state) {
     const pct = topPercent(mine.rank, data.total);
     const stats = [
         '### <:trackstats:1563476992853278830> Your Current Stats',
-        `**User:** @${escapeMarkdown(viewer.username)}`,
-        `**Rank:** ${mine.rank ? `#${fmt(mine.rank)} *(Top ${pct}%)*` : 'Unranked'}`,
-        `**${cfg.CASH_NAME[0].toUpperCase()}${cfg.CASH_NAME.slice(1)}:** ${fmt(mine.cash)}`
+        `-# **User:** @${escapeMarkdown(viewer.username)}`,
+        `-# **Rank:** ${mine.rank ? `#${fmt(mine.rank)} *(Top ${pct}%)*` : 'Unranked'}`,
+        `-# **${cfg.CASH_NAME[0].toUpperCase()}${cfg.CASH_NAME.slice(1)}:** ${fmt(mine.cash)}`
     ].join('\n');
 
     const start = (data.page - 1) * PER_PAGE;
