@@ -1,8 +1,9 @@
 const { BUTTON_PREFIX, handleButton } = require('../funeconomy/blackjack');
 const register = require('../funeconomy/register');
 const mines = require('../funeconomy/mines');
+const leaderboard = require('../funeconomy/leaderboardView');
 
-// Tombol blackjack (Hit/Stand) dan Register. Dimuat otomatis oleh handlers/events.js.
+// Tombol blackjack (Hit/Stand), Register, Mines, dan Leaderboard. Dimuat otomatis oleh handlers/events.js.
 module.exports = {
     name: 'interactionCreate',
     async execute(interaction, client) {
@@ -16,6 +17,11 @@ module.exports = {
         }
         if (interaction.customId.startsWith(`${mines.BUTTON_PREFIX}:`)) {
             return mines.handleButton(interaction);
+        }
+        if (interaction.customId.startsWith(`${leaderboard.BUTTON_PREFIX}:`)) {
+            return leaderboard.handleButton(interaction).catch((error) => {
+                console.error('[FUNECONOMY] Leaderboard button failed:', error);
+            });
         }
     }
 };

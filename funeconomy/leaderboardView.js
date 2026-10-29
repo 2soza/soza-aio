@@ -1,0 +1,146 @@
+const {
+    ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize,
+    ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags, escapeMarkdown
+} = require('discord.js');
+const cfg = require('./config');
+const { fmt } = require('./utils');
+const FunEconomy = require('../models/funeconomy/schema');
+
+// Leaderboard cash ala OwO (Components V2): Current Stats -> Rankings -> halaman.
+const BUTTON_PREFIX = 'flb';
+const PER_PAGE = 10;
+const ACCENT = 0x7ab8f5;
+const MEDALS = ['🥇', '🥈', '🥉'];
+
+const scopeFilter = (scope, guildId) => (scope === 'guild' ? { guildIds: guildId } : {});
+const baseFilter = (scope, guildId) => ({ cash: { $gt: 0 }, ...scopeFilter(scope, guildId) });
+
+async function fetchPage({ scope, guildId, page }) {
+    const filter = baseFilter(scope, guildId);
+    const total = await FunEconomy.countDocuments(filter);
+    const pages = Math.max(1, Math.ceil(total / PER_PAGE));
+    const current = Math.min(Math.max(page, 1), pages);
+    const rows = await FunEconomy.find(filter)
+        .sort({ cash: -1, _id: 1 })
+        .skip((current - 1) * PER_PAGE)
+        .limit(PER_PAGE)
+        .select('userId cash')
+        .lean();
+    return { rows, total, pages, page: current };
+}
+
+async function rankOf(userId, { scope, guildId }) {
+    const me = await FunEconomy.findOne({ userId, ...scopeFilter(scope, guildId) }).select('cash').lean();
+    const cash = me?.cash ?? 0;
+    if (cash <= 0) return { rank: null, cash: 0 };
+    const ahead = await FunEconomy.countDocuments({ cash: { $gt: cash }, ...scopeFilter(scope, guildId) });
+    return { rank: ahead + 1, cash };
+}
+
+async function resolveName(client, guild, scope, id) {
+    const user = client.users.cache.get(id) ?? await client.users.fetch(id).catch(() => null);
+    if (user) return `@${escapeMarkdown(user.username)}`;
+    const member = scope === 'guild' ? guild?.members.cache.get(id) : null;
+    return member ? `@${escapeMarkdown(member.user.username)}` : 'Unknown User';
+}
+
+function topPercent(rank, total) {
+    if (!rank || !total) return null;
+    const pct = (rank / total) * 100;
+    return pct < 0.1 ? '0.1' : pct.toFixed(1);
+}
+
+const btn = (id, opts) => {
+    const b = new ButtonBuilder().setCustomId(id).setStyle(opts.style ?? ButtonStyle.Secondary);
+    if (opts.label) b.setLabel(opts.label);
+    if (opts.emoji) b.setEmoji(opts.emoji);
+    if (opts.disabled) b.setDisabled(true);
+    return b;
+};
+
+/** Bangun pesan leaderboard. state: { ownerId, scope, page } */
+async function build(client, guild, viewer, state) {
+    const { scope } = state;
+    const guildId = guild.id;
+    const data = await fetchPage({ scope, guildId, page: state.page });
+    const mine = await rankOf(viewer.id, { scope, guildId });
+    const myPage = mine.rank ? Math.ceil(mine.rank / PER_PAGE) : null;
+    const id = (action, page) => `${BUTTON_PREFIX}:${action}:${state.ownerId}:${scope}:${page}`;
+
+    const title = scope === 'guild'
+        ? `${escapeMarkdown(guild.name)} ${cfg.CASH_NAME} Leaderboard`
+        : `Global ${cfg.CASH_NAME} Leaderboard`;
+    const header = `## ${cfg.EMOJI.TOP} ${title}\nLeaderboard for the amount of ${cfg.CASH_NAME} you have.`;
+
+    const pct = topPercent(mine.rank, data.total);
+    const stats = [
+        '### 📊 Your Current Stats',
+        `**User:** @${escapeMarkdown(viewer.username)}`,
+        `**Rank:** ${mine.rank ? `#${fmt(mine.rank)} *(Top ${pct}%)*` : 'Unranked'}`,
+        `**${cfg.CASH_NAME[0].toUpperCase()}${cfg.CASH_NAME.slice(1)}:** ${fmt(mine.cash)}`
+    ].join('\n');
+
+    const start = (data.page - 1) * PER_PAGE;
+    const lines = await Promise.all(data.rows.map(async (row, i) => {
+        const pos = start + i + 1;
+        const name = await resolveName(client, guild, scope, row.userId);
+        const prefix = pos <= 3 ? MEDALS[pos - 1] : `**${pos}.**`;
+        const you = row.userId === viewer.id ? ' ◀' : '';
+        return `${prefix} ${name}${you}\n-# ${cfg.CASH_NAME}: \`${fmt(row.cash)}\``;
+    }));
+    const rankings = `### 🏆 Rankings\n${lines.length ? lines.join('\n') : 'Nobody is on this leaderboard yet!'}`;
+
+    const nowSec = Math.floor(Date.now() / 1000);
+    const footer = `-# Last updated: <t:${nowSec}:R> • Total players: ${fmt(data.total)}`;
+
+    const divider = () => new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small);
+
+    const container = new ContainerBuilder()
+        .setAccentColor(ACCENT)
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(header))
+        .addSeparatorComponents(divider())
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(stats))
+        .addActionRowComponents(new ActionRowBuilder().addComponents(
+            btn(id('me', myPage ?? 1), { label: 'My Rank', emoji: '🔍', disabled: !myPage || myPage === data.page })
+        ))
+        .addSeparatorComponents(divider())
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(rankings))
+        .addActionRowComponents(new ActionRowBuilder().addComponents(
+            btn(id('top', 1), { label: 'Top', emoji: '📊', disabled: data.page === 1 })
+        ))
+        .addSeparatorComponents(divider())
+        .addTextDisplayComponents(new TextDisplayBuilder().setContent(footer))
+        .addActionRowComponents(new ActionRowBuilder().addComponents(
+            btn(id('first', 1), { emoji: '⏪', disabled: data.page === 1 }),
+            btn(id('prev', data.page - 1), { emoji: '◀️', disabled: data.page === 1 }),
+            btn(id('page', data.page), { label: `${fmt(data.page)}/${fmt(data.pages)}`, disabled: true }),
+            btn(id('next', data.page + 1), { emoji: '▶️', disabled: data.page >= data.pages }),
+            btn(id('last', data.pages), { emoji: '⏩', disabled: data.page >= data.pages })
+        ));
+
+    return { components: [container], allowedMentions: { parse: [] } };
+}
+
+async function send(message, client, scope) {
+    const payload = await build(client, message.guild, message.author, {
+        ownerId: message.author.id, scope, page: 1
+    });
+    return message.channel.send({ ...payload, flags: MessageFlags.IsComponentsV2 });
+}
+
+async function handleButton(interaction) {
+    const [, , ownerId, scope, pageRaw] = interaction.customId.split(':');
+    if (interaction.user.id !== ownerId) {
+        return interaction.reply({
+            content: `${cfg.EMOJI.ERROR} | This leaderboard isn't yours! Use \`${cfg.PREFIX}lb\` to open your own.`,
+            flags: MessageFlags.Ephemeral
+        });
+    }
+    await interaction.deferUpdate();
+    const payload = await build(interaction.client, interaction.guild, interaction.user, {
+        ownerId, scope: scope === 'guild' ? 'guild' : 'global', page: Number(pageRaw) || 1
+    });
+    return interaction.editReply(payload);
+}
+
+module.exports = { BUTTON_PREFIX, PER_PAGE, build, send, handleButton };
