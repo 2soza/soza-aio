@@ -59,7 +59,7 @@ function formatTime(date) {
 
 function createHistoryContainer(messages, filters = {}) {
     const container = new ContainerBuilder()
-        .setAccentColor(0xdc92ff)
+        .setAccentColor(0x5865f2)
         .addTextDisplayComponents(
             new TextDisplayBuilder().setContent('**<:messagehistory:1565185242409738240> MESSAGE HISTORY**')
         )
@@ -124,9 +124,9 @@ function createHistoryContainer(messages, filters = {}) {
 
 function createStatusContainer(message) {
     return new ContainerBuilder()
-        .setAccentColor(0xdc92ff)
+        .setAccentColor(0x5865f2)
         .addTextDisplayComponents(
-            new TextDisplayBuilder().setContent('**🗂️ MESSAGE HISTORY**')
+            new TextDisplayBuilder().setContent('**<:messagehistory:1565185242409738240> MESSAGE HISTORY**')
         )
         .addSeparatorComponents(new SeparatorBuilder().setDivider(true).setSpacing(SeparatorSpacingSize.Small))
         .addTextDisplayComponents(
