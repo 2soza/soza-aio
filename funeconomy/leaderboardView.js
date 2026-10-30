@@ -89,7 +89,7 @@ async function build(client, guild, viewer, state) {
         const pos = start + i + 1;
         const name = await resolveName(client, guild, scope, row.userId);
         const prefix = pos <= 3 ? MEDALS[pos - 1] : `**${pos}.**`;
-        const you = row.userId === viewer.id ? ' ◀' : '';
+        const you = row.userId === viewer.id ? ' <:previous:1565277042201591848>' : '';
         return `${prefix} ${name}${you}\n-# ${cfg.CASH_NAME}: \`${fmt(row.cash)}\``;
     }));
     const rankings = `### <:trophy_gold:1565277035880910848> Rankings\n${lines.length ? lines.join('\n') : 'Nobody is on this leaderboard yet!'}`;
