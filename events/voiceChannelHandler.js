@@ -53,7 +53,10 @@ function humanCount(guild, channelId, excludeUserId) {
   ).size;
 }
 
-async function cleanupTemporaryRoom(record, guild, excludeUserId = null) {
+async function cleanupTemporaryRoom(record, guild, excludeUserId = null, force = false) {
+  // Sweep berkala tidak boleh menghapus channel yang baru dibuat; beri pemiliknya waktu untuk masuk.
+  if (!force && Date.now() - new Date(record.createdAt).getTime() < 15000) return false;
+
   const channel = guild.channels.cache.get(record.channelId);
   const waitingChannel = record.waitingRoomChannelId
     ? guild.channels.cache.get(record.waitingRoomChannelId)
@@ -192,7 +195,7 @@ const handleVoiceStateUpdate = async (client, oldState, newState) => {
     if (departingRoom && newState.channelId !== departingRoom.waitingRoomChannelId) {
       try {
         // Hapus langsung saat orang terakhir keluar, tanpa jeda waktu.
-        await cleanupTemporaryRoom(departingRoom, oldState.guild, oldState.id);
+        await cleanupTemporaryRoom(departingRoom, oldState.guild, oldState.id, true);
       } catch (error) {
         console.error(`Error cleaning up TempVoice room ${departingRoom.channelId}:`, error);
       }
