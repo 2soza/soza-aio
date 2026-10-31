@@ -2,6 +2,9 @@ const { Client, ChannelType, PermissionsBitField, EmbedBuilder, ActionRowBuilder
 const { VoiceChannelModel, TemporaryChannelModel, CentralizedControlModel, UserVoicePreferenceModel } = require('../models/autoVoice/schema');
 const tempVoiceControls = require('../utils/autoVoiceControls');
 let config = {};
+// Room baru yang pemiliknya belum sempat masuk. Hanya room ini yang dilindungi dari sweep.
+const pendingRooms = new Map();
+const PENDING_GRACE_MS = 15000;
 
 async function loadConfig() {
   try {
@@ -54,8 +57,13 @@ function humanCount(guild, channelId, excludeUserId) {
 }
 
 async function cleanupTemporaryRoom(record, guild, excludeUserId = null, force = false) {
-  // Sweep berkala tidak boleh menghapus channel yang baru dibuat; beri pemiliknya waktu untuk masuk.
-  if (!force && Date.now() - new Date(record.createdAt).getTime() < 15000) return false;
+  // Sweep tidak boleh menghapus room yang baru dibuat dan belum pernah dimasuki pemiliknya.
+  // Setelah pemilik masuk, room tidak lagi dilindungi dan terhapus segera saat kosong.
+  const pendingSince = pendingRooms.get(record.channelId);
+  if (pendingSince) {
+    if (!force && Date.now() - pendingSince < PENDING_GRACE_MS) return false;
+    pendingRooms.delete(record.channelId);
+  }
 
   const channel = guild.channels.cache.get(record.channelId);
   const waitingChannel = record.waitingRoomChannelId
@@ -184,21 +192,27 @@ const checkOutdatedCentralizedControls = async (client) => {
 };
 
 const handleVoiceStateUpdate = async (client, oldState, newState) => {
+  // Pemilik (atau siapa pun) sudah masuk ke room baru: lepas perlindungan sweep.
+  if (newState.channelId && pendingRooms.has(newState.channelId)) {
+    pendingRooms.delete(newState.channelId);
+  }
+
   if (oldState.channelId && oldState.channelId !== newState.channelId) {
-    const departingRoom = await TemporaryChannelModel.findOne({
-      isTemporary: true,
-      $or: [
-        { channelId: oldState.channelId },
-        { waitingRoomChannelId: oldState.channelId }
-      ]
-    });
-    if (departingRoom && newState.channelId !== departingRoom.waitingRoomChannelId) {
-      try {
+    try {
+      const departingRoom = await TemporaryChannelModel.findOne({
+        isTemporary: true,
+        $or: [
+          { channelId: oldState.channelId },
+          { waitingRoomChannelId: oldState.channelId }
+        ]
+      });
+      if (departingRoom && newState.channelId !== departingRoom.waitingRoomChannelId) {
         // Hapus langsung saat orang terakhir keluar, tanpa jeda waktu.
-        await cleanupTemporaryRoom(departingRoom, oldState.guild, oldState.id, true);
-      } catch (error) {
-        console.error(`Error cleaning up TempVoice room ${departingRoom.channelId}:`, error);
+        const removed = await cleanupTemporaryRoom(departingRoom, oldState.guild, oldState.id, true);
+        console.log(`[TempVoice] ${oldState.id} left ${departingRoom.channelId}; room removed: ${removed}`);
       }
+    } catch (error) {
+      console.error(`[TempVoice] Error cleaning up room ${oldState.channelId}:`, error);
     }
   }
 
@@ -315,6 +329,7 @@ const handleVoiceStateUpdate = async (client, oldState, newState) => {
         ]
       });
 
+      pendingRooms.set(createdChannel.id, Date.now());
       await TemporaryChannelModel.create({
         channelId: createdChannel.id,
         guildId,
@@ -333,6 +348,7 @@ const handleVoiceStateUpdate = async (client, oldState, newState) => {
       deleteChannelAfterTimeout(client, createdChannel.id, 6 * 60 * 60 * 1000);
     } catch (error) {
       if (createdChannel) {
+        pendingRooms.delete(createdChannel.id);
         await TemporaryChannelModel.deleteOne({ channelId: createdChannel.id }).catch(() => {});
         await createdChannel.delete('TempVoice creation could not finish').catch(() => {});
       }
