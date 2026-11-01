@@ -21,7 +21,7 @@ module.exports = {
             // OwO-style cooldown: Discord relative timestamp (<t:UNIX:R>) renders as
             // "in 5 minutes" and counts down live on the client.
             const readyAt = Math.ceil((Date.now() + result.remainingMs) / 1000);
-            const sent = await send(message, `${cfg.EMOJI.TIMER} | **${name}**, you can pray to Soza again <t:${readyAt}:R>!`);
+            const sent = await send(message, `${cfg.EMOJI.TIMER} | **${name}**, you can pray to Soza again **<t:${readyAt}:R>**!`);
             // Remove the cooldown notice once the cooldown has finished.
             if (sent && typeof sent.delete === 'function') {
                 const timer = setTimeout(() => sent.delete().catch(() => {}), result.remainingMs);
