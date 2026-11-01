@@ -215,90 +215,32 @@ async handleMentions(message) {
 
 async sendMentionNotification(message, mentionedAFKs) {
   try {
+    const since = (afk) => `<t:${Math.floor(new Date(afk.setAt).getTime() / 1000)}:R>`;
+
+    // One AFK user: Koya-style notice.
     if (mentionedAFKs.length === 1) {
-      const { userId, afk, user } = mentionedAFKs[0];
-      
-      const mentionContainer = new ContainerBuilder()
-        .setAccentColor(0x00BFFF)
-        .addTextDisplayComponents(
-          new TextDisplayBuilder()
-            .setContent(`# 🌙 AFK Notification\n${user ? user.tag : `<@${userId}>`} is currently AFK.\n**Reason:** ${afk.reason}`)
-        );
+      const { userId, afk } = mentionedAFKs[0];
 
-      
-      let additionalInfo = '';
-      if (afk.expiresAt && afk.settings.showDuration) {
-        additionalInfo += `**Returns:** <t:${Math.floor(afk.expiresAt.getTime() / 1000)}:R>\n`;
-      }
-      if (afk.mentions.count > 1) {
-        additionalInfo += `**Mentions:** ${afk.mentions.count} times`;
-      }
-
-      if (additionalInfo) {
-        mentionContainer.addSeparatorComponents(
-          new SeparatorBuilder()
-            .setSpacing(SeparatorSpacingSize.Small)
-        )
-        .addTextDisplayComponents(
-          new TextDisplayBuilder()
-            .setContent(additionalInfo)
-        );
-      }
-
-      mentionContainer.addSeparatorComponents(
-        new SeparatorBuilder()
-          .setSpacing(SeparatorSpacingSize.Small)
-      )
-      .addTextDisplayComponents(
-        new TextDisplayBuilder()
-          .setContent(`*AFK notification • ${new Date().toLocaleString()}*`)
-      );
-
-      await message.reply({ 
-        components: [mentionContainer], 
-        flags: MessageFlags.IsComponentsV2,
-        allowedMentions: { repliedUser: false } 
+      await message.channel.send({
+        content: `<@${userId}> is **AFK**:\n${afk.reason} - ${since(afk)}`,
+        allowedMentions: { parse: [] }
       });
-    } else {
-      let description = '';
-      for (const { userId, afk, user } of mentionedAFKs.slice(0, 5)) {
-        const userTag = user ? user.tag : `<@${userId}>`;
-        description += `**${userTag}:** ${afk.reason}\n`;
-      }
-
-      if (mentionedAFKs.length > 5) {
-        description += `\n*...and ${mentionedAFKs.length - 5} more*`;
-      }
-
-      const multiMentionContainer = new ContainerBuilder()
-        .setAccentColor(0x00BFFF)
-        .addTextDisplayComponents(
-          new TextDisplayBuilder()
-            .setContent(`# 🌙 AFK Notification\n${mentionedAFKs.length} AFK Users Mentioned`)
-        )
-        .addSeparatorComponents(
-          new SeparatorBuilder()
-            .setSpacing(SeparatorSpacingSize.Small)
-        )
-        .addTextDisplayComponents(
-          new TextDisplayBuilder()
-            .setContent(description)
-        )
-        .addSeparatorComponents(
-          new SeparatorBuilder()
-            .setSpacing(SeparatorSpacingSize.Small)
-        )
-        .addTextDisplayComponents(
-          new TextDisplayBuilder()
-            .setContent(`*AFK notification • ${new Date().toLocaleString()}*`)
-        );
-      
-      await message.reply({ 
-        components: [multiMentionContainer], 
-        flags: MessageFlags.IsComponentsV2,
-        allowedMentions: { repliedUser: false } 
-      });
+      return;
     }
+
+    // Several AFK users: one compact message.
+    const lines = mentionedAFKs.slice(0, 5).map(({ userId, afk }) => {
+      const reason = afk.reason.length > 150 ? `${afk.reason.slice(0, 147)}...` : afk.reason;
+      return `<@${userId}> is **AFK**: ${reason} - ${since(afk)}`;
+    });
+    if (mentionedAFKs.length > 5) {
+      lines.push(`*...and ${mentionedAFKs.length - 5} more*`);
+    }
+
+    await message.channel.send({
+      content: lines.join('\n'),
+      allowedMentions: { parse: [] }
+    });
   } catch (error) {
     console.error('Error sending mention notification:', error);
   }
@@ -345,48 +287,32 @@ async handleAFKRemoval(message) {
   if (!message.guild || !message.author || message.author.bot) return;
 
   try {
+    const current = await this.getAFK(message.author.id, message.guild.id);
+    if (!current) return;
+
+    // The message that just set the AFK (e.g. "soza afk ...") must not cancel it.
+    if (message.createdTimestamp <= new Date(current.setAt).getTime() + 2000) return;
+
     const afk = await this.removeAFK(message.author.id, message.guild.id);
-    
     if (!afk) return;
 
     if (afk.settings.publicNotifications) {
-      const totalTime = afk.metadata.totalAfkTime || 0;
-      const afkDuration = this.formatDuration(totalTime);
-      
-      const welcomeBackContainer = new ContainerBuilder()
-        .setAccentColor(0x00FF7F)
-        .addTextDisplayComponents(
-          new TextDisplayBuilder()
-            .setContent(`# 👋 Welcome Back!\nWelcome back, <@${message.author.id}>! Your AFK status has been removed.`)
-        );
+      const afkDuration = this.formatDuration(afk.metadata.totalAfkTime || 0);
+      const lines = [`👋 Welcome back <@${message.author.id}>, I removed your **AFK**. (AFK for ${afkDuration})`];
 
       if (afk.mentions.count > 0) {
-        welcomeBackContainer.addSeparatorComponents(
-          new SeparatorBuilder()
-            .setSpacing(SeparatorSpacingSize.Small)
-        )
-        .addTextDisplayComponents(
-          new TextDisplayBuilder()
-            .setContent(`**While You Were Away**\nYou were mentioned **${afk.mentions.count}** time(s)\nAFK Duration: **${afkDuration}**`)
-        );
+        lines.push(`You were mentioned **${afk.mentions.count}** time(s) while you were away.`);
       }
 
-      welcomeBackContainer.addSeparatorComponents(
-        new SeparatorBuilder()
-          .setSpacing(SeparatorSpacingSize.Small)
-      )
-      .addTextDisplayComponents(
-        new TextDisplayBuilder()
-          .setContent(`*Welcome back! • ${new Date().toLocaleString()}*`)
-      );
+      let content = lines.join('\n');
+      if (content.length > 2000) content = `${content.slice(0, 1997)}...`;
 
-      await message.channel.send({ 
-        components: [welcomeBackContainer], 
-        flags: MessageFlags.IsComponentsV2 
+      await message.channel.send({
+        content,
+        allowedMentions: { parse: [] }
       });
     }
 
-  
     if (afk.settings.dmNotifications) {
       await this.sendWelcomeBackDM(message.author, afk);
     }
