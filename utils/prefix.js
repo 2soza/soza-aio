@@ -1,5 +1,8 @@
 const config = require('../config.json');
 
+// Matches "soza " only when it is followed by the word "afk" (case-insensitive).
+const SOZA_AFK_PREFIX = /^soza\s+(?=afk(?:\s|$))/i;
+
 /**
  * Returns the prefix that `content` starts with, or null if it is not a
  * prefix command.
@@ -11,6 +14,10 @@ const config = require('../config.json');
  */
 function getMatchedPrefix(content, serverPrefix) {
     if (typeof content !== 'string') return null;
+
+    // "soza afk ..." works as a prefix command (Koya style), whatever the server prefix is.
+    const sozaAfk = content.match(SOZA_AFK_PREFIX);
+    if (sozaAfk) return sozaAfk[0];
 
     const candidates = [...new Set([serverPrefix, config.prefix || '.'])]
         .filter(prefix => typeof prefix === 'string' && prefix.length > 0)
