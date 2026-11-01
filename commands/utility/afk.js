@@ -48,10 +48,11 @@ module.exports = {
             return;
         }
 
-        // Prefix: everything after the word "afk" is the reason (works for any prefix style).
-        let reason = isSlash
-            ? source.options.getString('reason')
-            : source.content.match(/afk\s*([\s\S]*)$/i)?.[1];
+        // Prefix form is only "soza afk <reason>". Other prefixes (e.g. ".afk") are ignored.
+        const prefixMatch = isSlash ? null : source.content.match(/^soza\s+afk(?:\s+([\s\S]*))?$/i);
+        if (!isSlash && !prefixMatch) return;
+
+        let reason = isSlash ? source.options.getString('reason') : prefixMatch[1];
         reason = (reason ?? '').trim().slice(0, MAX_REASON) || DEFAULT_REASON;
 
         try {
