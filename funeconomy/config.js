@@ -141,6 +141,7 @@ module.exports = {
         STREAK: '🔥',
         LEVEL: '⭐',
         LEVELUP: '🎉',
-        GUILD: '🏰'
+        GUILD: '🏰',
+        BLANK: '<:blank:1566264842757607545>'
     }
 };
