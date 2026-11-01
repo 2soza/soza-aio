@@ -112,7 +112,7 @@ function onCooldown(message, game) {
     if (!hit) return false;
     if (hit.notify) {
         const expiresAt = Date.now() + hit.ms;
-        send(message, `${cfg.EMOJI.TIMER} | **${displayName(message)}**, slow down and try the command again in **${cooldown.formatTime(hit.ms)}**!`)
+        send(message, `${cfg.EMOJI.TIMER} | **${displayName(message)}**, slow down and try the command again **<t:${Math.ceil(expiresAt / 1000)}:R>**!`)
             .then((warningMessage) => {
                 const timer = setTimeout(() => {
                     warningMessage.delete().catch(() => {});
