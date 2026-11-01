@@ -21,6 +21,6 @@ module.exports = {
             return send(message, `${cfg.EMOJI.TIMER} | **${name}**, you can pray to Soza again in **${formatDuration(result.remainingMs)}**!`);
         }
         const line = PRAY_LINES[crypto.randomInt(PRAY_LINES.length)];
-        return send(message, `**${cfg.PRAY.EMOJI} | ${name}** prays to Soza... ${line}\n**\\_\\_ |** You have **${fmt(result.points)}** luck point(s)!`);
+        return send(message, `**${cfg.PRAY.EMOJI} | ${name}** prays to Soza... ${line}\n**${cfg.EMOJI.BLANK} |** You have **${fmt(result.points)}** luck point(s)!`);
     }
 };
