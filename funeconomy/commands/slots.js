@@ -1,4 +1,6 @@
 const crypto = require('crypto');
+const Luck = require('../../models/funeconomy/luck');
+const { slotsChances } = require('../luckMath');
 const cfg = require('../config');
 const Economy = require('../../models/funeconomy/economy');
 const cooldown = require('../cooldown');
@@ -14,7 +16,8 @@ const {
  *   <:cherry:1555452550847930398>  x3   (5%)
  *   <:slotcash:1555467668700532807>  x4   (2.5%)
  *   <:jackpot:1555534323707285555>  x10  (1%)
- *   lainnya kalah (51.5%).  RTP = 95% (rata-rata -0.05x per taruhan).
+ *   Tanpa luck: lainnya kalah (51.5%), RTP = 95%.
+ *   Pray shifts up to 2 percentage points from losing to x2; multipliers stay unchanged.
  * `chance` dalam per sejuta supaya aman dari galat desimal.
  */
 const E = cfg.SLOT_EMOJI;
@@ -43,9 +46,9 @@ function multiplierFor(reels) {
     return hit ? hit.multiplier : 0;
 }
 
-function spinReels() {
+function spinReels(points = 0) {
     let roll = crypto.randomInt(CHANCE_SCALE);
-    for (const payout of PAYOUTS) {
+    for (const payout of slotsChances(PAYOUTS, points)) {
         if (roll < payout.chance) return payout.reels.map((id) => SYMBOLS[id]);
         roll -= payout.chance;
     }
@@ -63,7 +66,7 @@ const renderSlots = (name, bet, emojis, outcome) =>
         '**`__| SLOTS |__`**',
         `\`[\` ${emojis.join(' ')} \`]\` **${name}** bet ${cfg.CASH_EMOJI} ${fmt(bet)}`,
         `\u2800\`|        |\` ${outcome}`,
-        '\u2800\`|        |`'
+        '\u2800`|        |`'
     ].join('\n');
 
 module.exports = {
@@ -100,7 +103,8 @@ module.exports = {
 
             if (onCooldown(message, 'slots')) return;
 
-            const reels = spinReels();
+            const points = await Luck.getPoints(userId);
+            const reels = spinReels(points);
             const multiplier = multiplierFor(reels);
             const payout = bet * multiplier;
 

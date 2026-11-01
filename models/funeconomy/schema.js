@@ -7,6 +7,9 @@ const funEconomySchema = new mongoose.Schema({
     cash: { type: Number, default: 0, min: 0 },
     lastDailyDay: { type: Number, default: -1 },
     dailyStreak: { type: Number, default: 0 },
+    // Persistent pray state; older accounts read as zero luck.
+    luckPoints: { type: Number, default: 0 },
+    lastPrayAt: { type: Date, default: null },
     // Server tempat user pernah memakai command (dipakai untuk ranking per-server, seperti "owo top")
     guildIds: { type: [String], default: [] },
     // Idempotency markers prevent a recovered lottery/blackjack payout from crediting twice.

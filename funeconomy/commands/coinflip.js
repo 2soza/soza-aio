@@ -1,4 +1,5 @@
-const crypto = require('crypto');
+const Luck = require('../../models/funeconomy/luck');
+const { coinflipResult } = require('../luckMath');
 const cfg = require('../config');
 const Economy = require('../../models/funeconomy/economy');
 const cooldown = require('../cooldown');
@@ -49,7 +50,8 @@ module.exports = {
             if (onCooldown(message, 'cf')) return;
 
             // Tentukan hasil lalu simpan atomik SEBELUM animasi
-            const result = crypto.randomInt(2) === 0 ? 'heads' : 'tails';
+            const points = await Luck.getPoints(userId);
+            const result = coinflipResult(side, points);
             const won = result === side;
             const payout = won ? bet * 2 : 0;
 

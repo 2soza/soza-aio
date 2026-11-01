@@ -31,6 +31,14 @@ module.exports = {
         my: 15000
     },
 
+    // Pray: 1 point per 5 minutes; effective odds bonus caps at +2 percentage points.
+    PRAY: {
+        COOLDOWN_MS: 300000,
+        BONUS_CHANCE_PER_POINT: 100,
+        MAX_BONUS_CHANCE: 20000,
+        EMOJI: '🙏'
+    },
+
     // Registrasi akun fun economy. User baru menekan tombol Register sekali untuk mengaktifkan akun
     // dan menerima bonus cash. Command lain di bot tidak terpengaruh.
     REGISTRATION: {
