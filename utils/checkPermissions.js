@@ -1,6 +1,7 @@
 const { EmbedBuilder } = require('discord.js');
 const serverConfigController = require('../models/serverConfig/Controller');
 const cmdIcons = require('../UI/icons/commandicons');
+const { isBotOwner } = require('./botOwnerOnly');
 
 /**
  * Check permissions with hierarchical support for both slash commands and prefix commands
@@ -26,6 +27,9 @@ module.exports = async function checkPermissions(context, requiredLevel = 'botma
     console.error('checkPermissions: Missing guild, user, or member data');
     return false;
   }
+
+  // Bot owner (DISCORD_USER_ID) may use every protected command in any server.
+  if (isBotOwner(context)) return true;
 
   const configData = await serverConfigController.getConfig(serverId);
   const botManagers = configData?.botManagers || [];
