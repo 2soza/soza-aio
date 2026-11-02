@@ -11,7 +11,6 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('setup-ticket')
         .setDescription('Set or view the ticket channel configuration for the server')
-        .setDefaultMemberPermissions(PermissionsBitField.Flags.ManageChannels)
         .addSubcommand(sub =>
             sub.setName('set')
                 .setDescription('Set the ticket and transcript channels')
