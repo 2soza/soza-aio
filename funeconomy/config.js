@@ -14,8 +14,8 @@ module.exports = {
     CASH_EMOJI: '<:cash:1555123079406026832>',
 
     // Batas taruhan (sama seperti OwO). "all" = min(saldo, MAX_BET)
-    MIN_BET: 1,
-    MAX_BET: 250000,
+    MIN_BET: 10,
+    MAX_BET: 500000,
 
     // Cooldown per pengguna dan command (ms). Game taruhan memakai 15 detik;
     // cash dan daily memakai 5 detik. Set 0 untuk mematikan.
