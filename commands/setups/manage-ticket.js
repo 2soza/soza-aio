@@ -43,7 +43,8 @@ module.exports = {
                             { name: 'Support', value: 'support' },
                             { name: 'Suggestion', value: 'suggestion' },
                             { name: 'Feedback', value: 'feedback' },
-                            { name: 'Report', value: 'report' }
+                            { name: 'Report', value: 'report' },
+                            { name: 'Partnership', value: 'partnership' }
                         ))
                 .addUserOption(option =>
                     option.setName('user')
@@ -342,7 +343,8 @@ async function sendTicketEmbed(channel) {
             { label: '🆘 Support', value: 'support' },
             { label: '📂 Suggestion', value: 'suggestion' },
             { label: '💜 Feedback', value: 'feedback' },
-            { label: '⚠️ Report', value: 'report' }
+            { label: '⚠️ Report', value: 'report' },
+            { label: '🤝 Partnership', value: 'partnership' }
         ]);
 
     const row = new ActionRowBuilder().addComponents(menu);
