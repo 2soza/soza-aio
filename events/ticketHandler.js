@@ -159,7 +159,8 @@ async function sendTicketEmbed(channel) {
             { label: '🆘 Support', value: 'support' },
             { label: '📂 Suggestion', value: 'suggestion' },
             { label: '💜 Feedback', value: 'feedback' },
-            { label: '⚠️ Report', value: 'report' }
+            { label: '⚠️ Report', value: 'report' },
+            { label: '🤝 Partnership', value: 'partnership' }
         ]);
 
     const row = new ActionRowBuilder().addComponents(menu);
