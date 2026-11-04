@@ -8,3 +8,9 @@
 - Keep pray points and cooldown in the global FunEconomy account with an atomic conditional update, so concurrent commands and bot restarts cannot bypass the cooldown.
 - Keep probability math in funeconomy/luckMath.js and use it in both coinflip and slots, so bonuses stay bounded and payout amounts remain unchanged.
 - Load pray through the existing fun economy dispatcher and registration gate; never auto-register players through pray.
+
+# Ticket staff roles
+
+- Keep the merged staff role list in utils/ticketRoles.js so channel access, ticket mentions, and permission checks all use the setup admin role plus the added roles.
+- Cap the merged staff role list at the Discord channel permission-overwrite limit so creating a ticket cannot fail.
+- Mention staff roles in the ticket opening message instead of offering a separate staff ping button.

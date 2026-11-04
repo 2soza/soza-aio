@@ -14,34 +14,36 @@ const generateTranscript = require('../utils/generateTranscript');
 const fs = require('fs').promises;
 const path = require('path');
 const setupBanners = require('../UI/banners/SetupBanners');
+const { ticketRoleIds, staffMention, isTicketStaff } = require('../utils/ticketRoles');
 
 let configCache = {};
 let lastConfigLoad = null;
-const CONFIG_REFRESH_INTERVAL = 60000; 
+const CONFIG_REFRESH_INTERVAL = 60000;
 
 
 async function loadConfig() {
     try {
         const tickets = await TicketConfig.find({});
         const newCache = {};
-        
+
         for (const ticket of tickets) {
             newCache[ticket.serverId] = {
                 ticketChannelId: ticket.ticketChannelId,
                 transcriptChannelId: ticket.transcriptChannelId,
                 adminRoleId: ticket.adminRoleId,
+                extraAdminRoleIds: ticket.extraAdminRoleIds || [],
                 status: ticket.status,
                 categoryId: ticket.categoryId,
                 ownerId: ticket.ownerId
             };
         }
-        
+
         configCache = newCache;
         lastConfigLoad = Date.now();
         return configCache;
     } catch (err) {
         console.error('Error loading ticket configs:', err);
-        return configCache; 
+        return configCache;
     }
 }
 
@@ -54,48 +56,45 @@ async function getConfig(force = false) {
 }
 
 module.exports = (client) => {
-  
+
     client.on('ready', async () => {
         //console.log('Initializing ticket system...');
         await loadConfig();
-        
-     
+
+
         setTimeout(() => setupTicketChannels(client), 5000);
-        
-       
-        //setInterval(() => syncTicketChannels(client), 30 * 60 * 1000); 
-        
-       
-        setInterval(() => cleanupStaleTickets(client), 15 * 60 * 1000); 
+
+
+        //setInterval(() => syncTicketChannels(client), 30 * 60 * 1000);
+
+
+        setInterval(() => cleanupStaleTickets(client), 15 * 60 * 1000);
     });
 
- 
+
     client.on('interactionCreate', async (interaction) => {
-   
+
         if (interaction.isStringSelectMenu() && interaction.customId === 'select_ticket_type') {
             await handleTicketCreation(interaction, client);
-        } 
-      
+        }
+
         else if (interaction.isButton() && interaction.customId.startsWith('close_ticket_')) {
             await handleTicketClose(interaction, client);
-        } 
-    
-        else if (interaction.isButton() && interaction.customId.startsWith('ping_staff_')) {
-            await handleStaffPing(interaction, client);
         }
+
     });
 
-   
+
     client.on('guildDelete', async (guild) => {
         try {
-         
+
             await TicketConfig.deleteOne({ serverId: guild.id });
             await TicketUserData.deleteMany({ guildId: guild.id });
-            
-           
+
+
             const config = await getConfig(true);
             delete config[guild.id];
-            
+
             console.log(`Cleaned up ticket data for deleted guild: ${guild.name} (${guild.id})`);
         } catch (err) {
             console.error(`Error cleaning up data for deleted guild ${guild.id}:`, err);
@@ -106,26 +105,26 @@ module.exports = (client) => {
 
 async function setupTicketChannels(client) {
     const config = await getConfig(true);
-    
+
     for (const [guildId, settings] of Object.entries(config)) {
         if (settings.status && settings.ticketChannelId) {
             const guild = client.guilds.cache.get(guildId);
             if (!guild) continue;
-            
+
             const ticketChannel = guild.channels.cache.get(settings.ticketChannelId);
             if (!ticketChannel) continue;
-            
-           
+
+
             try {
                 const messages = await ticketChannel.messages.fetch({ limit: 10 });
-                const botMessages = messages.filter(m => 
-                    m.author.bot && 
-                    m.embeds.length > 0 && 
+                const botMessages = messages.filter(m =>
+                    m.author.bot &&
+                    m.embeds.length > 0 &&
                     m.embeds[0].data.author?.name === "Welcome to Ticket Support"
                 );
-                
+
                 if (botMessages.size === 0) {
-                   
+
                     await sendTicketEmbed(ticketChannel);
                     console.log(`Initialized ticket embed in channel ${ticketChannel.name} (${ticketChannel.id})`);
                 }
@@ -180,21 +179,21 @@ async function handleTicketCreation(interaction, client) {
     const { guild, user, values } = interaction;
     const ticketType = values[0];
 
-  
+
     const config = await TicketConfig.findOne({ serverId: guild.id });
     if (!config || !config.status) {
-        return interaction.followUp({ 
+        return interaction.followUp({
             content: '⚠️ Ticket system is not configured or is disabled.',
-            ephemeral: true 
+            ephemeral: true
         });
     }
 
-    
-    const existingTicket = await TicketUserData.findOne({ 
-        userId: user.id, 
-        guildId: guild.id 
+
+    const existingTicket = await TicketUserData.findOne({
+        userId: user.id,
+        guildId: guild.id
     });
-    
+
     if (existingTicket) {
         const existingChannel = guild.channels.cache.get(existingTicket.ticketChannelId);
         if (existingChannel) {
@@ -203,49 +202,49 @@ async function handleTicketCreation(interaction, client) {
                 ephemeral: true
             });
         } else {
-          
+
             await TicketUserData.deleteOne({ _id: existingTicket._id });
         }
     }
 
-  
+
     try {
         const ticketChannel = await guild.channels.create({
             name: `${user.username}-${ticketType}`,
             type: ChannelType.GuildText,
             parent: config.categoryId || null,
             permissionOverwrites: [
-                { 
-                    id: guild.roles.everyone, 
-                    deny: [PermissionsBitField.Flags.ViewChannel] 
+                {
+                    id: guild.roles.everyone,
+                    deny: [PermissionsBitField.Flags.ViewChannel]
                 },
-                { 
-                    id: user.id, 
+                {
+                    id: user.id,
                     allow: [
-                        PermissionsBitField.Flags.ViewChannel, 
-                        PermissionsBitField.Flags.SendMessages, 
+                        PermissionsBitField.Flags.ViewChannel,
+                        PermissionsBitField.Flags.SendMessages,
                         PermissionsBitField.Flags.ReadMessageHistory
-                    ] 
+                    ]
                 },
-                { 
-                    id: config.adminRoleId, 
+                ...ticketRoleIds(config).map((roleId) => ({
+                    id: roleId,
                     allow: [
-                        PermissionsBitField.Flags.ViewChannel, 
-                        PermissionsBitField.Flags.SendMessages, 
+                        PermissionsBitField.Flags.ViewChannel,
+                        PermissionsBitField.Flags.SendMessages,
                         PermissionsBitField.Flags.ReadMessageHistory
-                    ] 
-                }
+                    ]
+                }))
             ]
         });
 
-        
+
         await TicketUserData.create({
             userId: user.id,
             guildId: guild.id,
             ticketChannelId: ticketChannel.id
         });
 
-      
+
         const ticketId = `${user.id}-${ticketChannel.id}`;
         const ticketEmbed = new EmbedBuilder()
             .setAuthor({ name: `${ticketType.charAt(0).toUpperCase() + ticketType.slice(1)} Ticket`, iconURL: ticketIcons.modIcon })
@@ -259,20 +258,16 @@ async function handleTicketCreation(interaction, client) {
             .setLabel('Close Ticket')
             .setStyle(ButtonStyle.Danger);
 
-        const pingButton = new ButtonBuilder()
-            .setCustomId(`ping_staff_${ticketId}`)
-            .setLabel('Ping Staff')
-            .setStyle(ButtonStyle.Primary);
+        const actionRow = new ActionRowBuilder().addComponents(closeButton);
 
-        const actionRow = new ActionRowBuilder().addComponents(closeButton, pingButton);
-
-        await ticketChannel.send({ 
-            content: `${user}`, 
-            embeds: [ticketEmbed], 
-            components: [actionRow] 
+        const staffPing = staffMention(config);
+        await ticketChannel.send({
+            content: staffPing ? `${user} ${staffPing}` : `${user}`,
+            embeds: [ticketEmbed],
+            components: [actionRow]
         });
 
-      
+
         try {
             const confirmEmbed = new EmbedBuilder()
                 .setColor(0x0099ff)
@@ -287,15 +282,15 @@ async function handleTicketCreation(interaction, client) {
             console.log(`Could not send DM to user ${user.tag}`);
         }
 
-        return interaction.followUp({ 
+        return interaction.followUp({
             content: `✅ Your ticket has been created: ${ticketChannel}`,
-            ephemeral: true 
+            ephemeral: true
         });
     } catch (err) {
         console.error(`Error creating ticket for ${user.tag}:`, err);
-        return interaction.followUp({ 
+        return interaction.followUp({
             content: '❌ Failed to create your ticket. Please try again later.',
-            ephemeral: true 
+            ephemeral: true
         });
     }
 }
@@ -308,25 +303,23 @@ async function handleTicketClose(interaction, client) {
     const [userId, channelId] = ticketId.split('-');
     const { guild, user } = interaction;
 
-  
+
     const isTicketOwner = userId === user.id;
     const config = await TicketConfig.findOne({ serverId: guild.id });
-    
+
     if (!config) {
-        return interaction.followUp({ 
+        return interaction.followUp({
             content: '❌ Ticket configuration not found.',
-            ephemeral: true 
+            ephemeral: true
         });
     }
 
-    const isAdmin = interaction.member.roles.cache.has(config.adminRoleId) || 
-                   user.id === config.ownerId || 
-                   interaction.member.permissions.has(PermissionsBitField.Flags.ManageChannels);
+    const isAdmin = isTicketStaff({ member: interaction.member, userId: user.id, config });
 
     if (!isTicketOwner && !isAdmin) {
-        return interaction.followUp({ 
+        return interaction.followUp({
             content: '❌ You do not have permission to close this ticket.',
-            ephemeral: true 
+            ephemeral: true
         });
     }
 
@@ -334,8 +327,8 @@ async function handleTicketClose(interaction, client) {
     try {
         const { attachment, fileName } = await generateTranscript(interaction.channel, client);
 
-        
-   
+
+
         const ticketOwner = await client.users.fetch(userId).catch(() => null);
         if (ticketOwner) {
             const dmEmbed = new EmbedBuilder()
@@ -344,26 +337,26 @@ async function handleTicketClose(interaction, client) {
                 .setDescription(`Your ticket in **${guild.name}** has been closed.`)
                 .setTimestamp()
                 .setFooter({ text: 'Thanks for using our support system!', iconURL: ticketIcons.modIcon });
-        
+
             try {
                 const dmMessage = await ticketOwner.send({
                     content: 'Here is your ticket transcript:',
                     embeds: [dmEmbed],
                     files: [attachment]
                 });
-        
+
                 const fileUrl = dmMessage.attachments.first()?.url;
                 if (fileUrl) {
                     await ticketOwner.send(`🔗 **View Transcript**: ${fileUrl}`);
                 }
-        
+
             } catch (err) {
                 console.warn(`Could not DM user ${ticketOwner.tag}:`, err.message);
             }
         }
-        
 
-       
+
+
         if (config.transcriptChannelId) {
             const logChannel = guild.channels.cache.get(config.transcriptChannelId);
             if (logChannel) {
@@ -376,24 +369,24 @@ async function handleTicketClose(interaction, client) {
                         { name: 'Original Owner', value: ticketOwner?.tag || 'Unknown', inline: true }
                     )
                     .setTimestamp();
-        
+
                 const logMsg = await logChannel.send({
                     content: `📩 Transcript from ticket ${interaction.channel.name}`,
                     embeds: [logEmbed],
                     files: [attachment]
                 });
-        
+
                 const fileUrl = logMsg.attachments.first()?.url;
                 if (fileUrl) {
                     await logChannel.send(`🔗 **View Transcript**: ${fileUrl}`);
                 }
             }
         }
-        
 
-        await interaction.followUp({ 
+
+        await interaction.followUp({
             content: '✅ Ticket closing in 5 seconds...',
-            ephemeral: true 
+            ephemeral: true
         });
 
 
@@ -409,7 +402,7 @@ setTimeout(async () => {
 
         await TicketUserData.deleteOne({ userId, guildId: guild.id });
 
-     
+
         try {
             await fs.unlink(transcriptAttachment.attachment);
         } catch (err) {
@@ -422,71 +415,11 @@ setTimeout(async () => {
 
     } catch (err) {
         console.error("Error generating transcript:", err);
-        return interaction.followUp({ 
+        return interaction.followUp({
             content: '❌ Failed to close ticket. Please try again.',
-            ephemeral: true 
-        });
-    }
-}
-async function handleStaffPing(interaction, client) {
-    await interaction.deferReply({ ephemeral: true });
-
-    const { guild, channel, member } = interaction;
-    const configEntry = await TicketConfig.findOne({ serverId: guild.id });
-
-    if (!configEntry || !configEntry.adminRoleId) {
-        return interaction.followUp({
-            embeds: [
-                new EmbedBuilder()
-                    .setColor('Red')
-                    .setTitle('⚠️ Staff Role Not Configured')
-                    .setDescription('Unable to ping staff as no admin role is set for tickets.')
-            ],
             ephemeral: true
         });
     }
-
-    const userData = await TicketUserData.findOne({ userId: member.id, guildId: guild.id });
-    const now = new Date();
-
-    if (userData?.lastPing && (now - userData.lastPing < 6 * 60 * 60 * 1000)) {
-        const nextPing = new Date(userData.lastPing.getTime() + 6 * 60 * 60 * 1000);
-        return interaction.followUp({
-            embeds: [
-                new EmbedBuilder()
-                    .setColor('Red')
-                    .setTitle('🕒 Cooldown Active')
-                    .setDescription(`You can ping staff again <t:${Math.floor(nextPing.getTime() / 1000)}:R>.`)
-            ],
-            ephemeral: true
-        });
-    }
-
-    const staffPingEmbed = new EmbedBuilder()
-    .setColor('Orange')
-    .setAuthor({ name: "Staff Assistance Requested", iconURL: ticketIcons.pingIcon })
-    .setDescription(`${member} has requested support in this ticket.`)
-    .setFooter({ text: 'Notification sent via the ticket system', iconURL: member.displayAvatarURL() })
-    .setTimestamp();
-
-
-    await channel.send({
-        content: `<@&${configEntry.adminRoleId}>`,
-        embeds: [staffPingEmbed]
-    });
-
-    await TicketUserData.updateOne(
-        { userId: member.id, guildId: guild.id },
-        { $set: { lastPing: now } },
-        { upsert: true }
-    );
-
-    const confirmationEmbed = new EmbedBuilder()
-        .setColor('Green')
-        .setTitle('✅ Staff Notified')
-        .setDescription('A support team member has been notified and will assist you shortly.');
-
-    await interaction.followUp({ embeds: [confirmationEmbed], ephemeral: true });
 }
 async function cleanupStaleTickets(client) {
     const allTickets = await TicketUserData.find({});
@@ -510,18 +443,19 @@ module.exports.reloadTicketConfig = async function (serverId, client) {
         return;
     }
 
- 
+
     configCache[serverId] = {
         ticketChannelId: updatedConfig.ticketChannelId,
         transcriptChannelId: updatedConfig.transcriptChannelId,
         adminRoleId: updatedConfig.adminRoleId,
+        extraAdminRoleIds: updatedConfig.extraAdminRoleIds || [],
         status: updatedConfig.status,
         categoryId: updatedConfig.categoryId,
         ownerId: updatedConfig.ownerId
     };
     lastConfigLoad = Date.now();
 
-  
+
     const guild = client.guilds.cache.get(serverId);
     if (!guild) return;
 

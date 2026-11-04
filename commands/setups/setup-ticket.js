@@ -7,6 +7,7 @@ const {
 const TicketConfig = require('../../models/ticket/TicketConfig');
 const cmdIcons = require('../../UI/icons/commandicons');
 const checkPermissions = require('../../utils/checkPermissions');
+const { MAX_STAFF_ROLES } = require('../../utils/ticketRoles');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('setup-ticket')
@@ -31,7 +32,7 @@ module.exports = {
                         .addBooleanOption(option =>
                             option.setName('status')
                                 .setDescription('Enable or disable the ticket system')
-                                .setRequired(true))        
+                                .setRequired(true))
                 .addChannelOption(option =>
                     option.setName('ticket_category')
                         .setDescription('Ticket category for ticket channels')
@@ -42,6 +43,22 @@ module.exports = {
         .addSubcommand(sub =>
             sub.setName('view')
                 .setDescription('View the current ticket config')
+        )
+        .addSubcommand(sub =>
+            sub.setName('add-role')
+                .setDescription('Add another staff role that can manage tickets')
+                .addRoleOption(option =>
+                    option.setName('role')
+                        .setDescription('Role to add as ticket staff')
+                        .setRequired(true))
+        )
+        .addSubcommand(sub =>
+            sub.setName('remove-role')
+                .setDescription('Remove a staff role added earlier')
+                .addRoleOption(option =>
+                    option.setName('role')
+                        .setDescription('Role to remove from ticket staff')
+                        .setRequired(true))
         ),
 
     async execute(interaction) {
@@ -102,11 +119,86 @@ module.exports = {
             });
         }
 
+        if (sub === 'add-role') {
+            const role = options.getRole('role');
+            if (!role) {
+                return interaction.reply({ content: '❌ That role no longer exists.', ephemeral: true });
+            }
+
+            if (!existing) {
+                return interaction.reply({
+                    content: '❌ Ticket system is not configured yet. Use `/setup-ticket set` first.',
+                    ephemeral: true
+                });
+            }
+
+            if (role.id === existing.adminRoleId) {
+                return interaction.reply({
+                    content: `ℹ️ **${role.name}** is already the main admin role.`,
+                    ephemeral: true
+                });
+            }
+
+            const extras = existing.extraAdminRoleIds || [];
+            if (extras.includes(role.id)) {
+                return interaction.reply({
+                    content: `ℹ️ **${role.name}** is already a ticket staff role.`,
+                    ephemeral: true
+                });
+            }
+
+            if (extras.length >= MAX_STAFF_ROLES - 1) {
+                return interaction.reply({
+                    content: `❌ Only ${MAX_STAFF_ROLES - 1} extra staff roles can be added.`,
+                    ephemeral: true
+                });
+            }
+
+            await TicketConfig.findOneAndUpdate(
+                { serverId },
+                { $push: { extraAdminRoleIds: role.id } }
+            );
+
+            return interaction.reply({
+                content: `✅ **${role.name}** was added to the ticket staff roles.`,
+                ephemeral: true
+            });
+        }
+
+        if (sub === 'remove-role') {
+            const role = options.getRole('role');
+            if (!role) {
+                return interaction.reply({ content: '❌ That role no longer exists.', ephemeral: true });
+            }
+
+            const extras = (existing && existing.extraAdminRoleIds) || [];
+            if (!extras.includes(role.id)) {
+                return interaction.reply({
+                    content: `❌ **${role.name}** is not one of the added staff roles.`,
+                    ephemeral: true
+                });
+            }
+
+            await TicketConfig.findOneAndUpdate(
+                { serverId },
+                { $pull: { extraAdminRoleIds: role.id } }
+            );
+
+            return interaction.reply({
+                content: `✅ **${role.name}** was removed from the ticket staff roles.`,
+                ephemeral: true
+            });
+        }
+
         if (sub === 'view') {
             const config = await TicketConfig.findOne({ serverId });
             if (!config) {
                 return interaction.reply({ content: '❌ No configuration found.', ephemeral: true });
             }
+
+            const extraRoles = (config.extraAdminRoleIds || []).length
+                ? (config.extraAdminRoleIds || []).map((id) => `<@&${id}>`).join(', ')
+                : 'None';
 
             const embed = new EmbedBuilder()
                 .setColor('#3498db')
@@ -115,6 +207,7 @@ module.exports = {
                 **Ticket Channel:** <#${config.ticketChannelId}>
                 **Transcript Channel:** <#${config.transcriptChannelId ?? 'Not set'}>
                 **Admin Role:** <@&${config.adminRoleId}>
+                **Extra Staff Roles:** ${extraRoles}
                 **Ticket Category:** ${config.categoryId ? `<#${config.categoryId}>` : 'Not set'}
                 **Status:** ${config.status ? '🟢 Enabled' : '🔴 Disabled'}
                 `)
@@ -126,8 +219,8 @@ module.exports = {
     } else {
         const embed = new EmbedBuilder()
             .setColor('#3498db')
-            .setAuthor({ 
-                name: "Alert!", 
+            .setAuthor({
+                name: "Alert!",
                 iconURL: cmdIcons.dotIcon,
                 url: "https://discord.gg/xQF9f9yUEM"
             })

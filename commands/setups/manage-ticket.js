@@ -1,10 +1,10 @@
 /*
  ██████╗ ██╗      █████╗  ██████╗███████╗██╗   ██╗████████╗
 ██╔════╝ ██║     ██╔══██╗██╔════╝██╔════╝╚██╗ ██╔╝╚══██╔══╝
-██║  ███╗██║     ███████║██║     █████╗   ╚████╔╝    ██║   
-██║   ██║██║     ██╔══██║██║     ██╔══╝    ╚██╔╝     ██║   
-╚██████╔╝███████╗██║  ██║╚██████╗███████╗   ██║      ██║   
- ╚═════╝ ╚══════╝╚═╝  ╚═╝ ╚═════╝╚══════╝   ╚═╝      ╚═╝   
+██║  ███╗██║     ███████║██║     █████╗   ╚████╔╝    ██║
+██║   ██║██║     ██╔══██║██║     ██╔══╝    ╚██╔╝     ██║
+╚██████╔╝███████╗██║  ██║╚██████╗███████╗   ██║      ██║
+ ╚═════╝ ╚══════╝╚═╝  ╚═╝ ╚═════╝╚══════╝   ╚═╝      ╚═╝
 
 -------------------------------------
 📡 Discord : https://discord.gg/xQF9f9yUEM
@@ -27,6 +27,7 @@ const generateTranscript = require('../../utils/generateTranscript');
 const setupBanners = require('../../UI/banners/SetupBanners');
 const cmdIcons = require('../../UI/icons/commandicons');
 const checkPermissions = require('../../utils/checkPermissions');
+const { ticketRoleIds, staffMention, isTicketStaff } = require('../../utils/ticketRoles');
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -73,8 +74,8 @@ module.exports = {
               if (!await checkPermissions(interaction)) return;
         const { options, guild, user, channel, member } = interaction;
         const subCommand = options.getSubcommand();
-        
-       
+
+
         const config = await TicketConfig.findOne({ serverId: guild.id });
         if (!config) {
             return interaction.reply({
@@ -83,7 +84,7 @@ module.exports = {
             });
         }
 
-        
+
         if (!config.status) {
             return interaction.reply({
                 content: '❌ Ticket system is currently disabled in this server.',
@@ -91,13 +92,11 @@ module.exports = {
             });
         }
 
-      
+
         if (subCommand === 'refresh') {
-          
-            const hasPermission = member.permissions.has(PermissionsBitField.Flags.ManageChannels) || 
-                                 config.ownerId === user.id || 
-                                 member.roles.cache.has(config.adminRoleId);
-            
+
+            const hasPermission = isTicketStaff({ member, userId: user.id, config });
+
             if (!hasPermission) {
                 return interaction.reply({
                     content: '❌ You do not have permission to refresh the ticket message.',
@@ -113,27 +112,25 @@ module.exports = {
                 });
             }
 
-         
+
             await sendTicketEmbed(ticketChannel);
-            
+
             return interaction.reply({
                 content: '✅ Ticket creation message has been refreshed.',
                 ephemeral: true
             });
         }
 
-     
+
         if (subCommand === 'create') {
             const ticketType = options.getString('type');
             const targetUser = options.getUser('user') || user;
             const reason = options.getString('reason');
-            
-        
+
+
             if (targetUser.id !== user.id) {
-                const hasPermission = member.permissions.has(PermissionsBitField.Flags.ManageChannels) || 
-                                    config.ownerId === user.id || 
-                                    member.roles.cache.has(config.adminRoleId);
-                
+                const hasPermission = isTicketStaff({ member, userId: user.id, config });
+
                 if (!hasPermission) {
                     return interaction.reply({
                         content: '❌ You do not have permission to create tickets for other users.',
@@ -141,13 +138,13 @@ module.exports = {
                     });
                 }
             }
-            
-      
-            const existingTicket = await TicketUserData.findOne({ 
-                userId: targetUser.id, 
-                guildId: guild.id 
+
+
+            const existingTicket = await TicketUserData.findOne({
+                userId: targetUser.id,
+                guildId: guild.id
             });
-            
+
             if (existingTicket) {
                 const existingChannel = guild.channels.cache.get(existingTicket.ticketChannelId);
                 if (existingChannel) {
@@ -156,81 +153,79 @@ module.exports = {
                         ephemeral: true
                     });
                 } else {
-                 
-                    await TicketUserData.deleteOne({ 
-                        userId: targetUser.id, 
-                        guildId: guild.id 
+
+                    await TicketUserData.deleteOne({
+                        userId: targetUser.id,
+                        guildId: guild.id
                     });
                 }
             }
-            
+
             await interaction.deferReply({ ephemeral: true });
-         
+
             const ticketChannel = await guild.channels.create({
                 name: `${targetUser.username}-${ticketType}`,
                 type: ChannelType.GuildText,
                 parent: config.categoryId || null,
                 permissionOverwrites: [
-                    { 
-                        id: guild.roles.everyone, 
-                        deny: [PermissionsBitField.Flags.ViewChannel] 
+                    {
+                        id: guild.roles.everyone,
+                        deny: [PermissionsBitField.Flags.ViewChannel]
                     },
-                    { 
-                        id: targetUser.id, 
+                    {
+                        id: targetUser.id,
                         allow: [
-                            PermissionsBitField.Flags.ViewChannel, 
-                            PermissionsBitField.Flags.SendMessages, 
+                            PermissionsBitField.Flags.ViewChannel,
+                            PermissionsBitField.Flags.SendMessages,
                             PermissionsBitField.Flags.ReadMessageHistory
-                        ] 
+                        ]
                     },
-                    { 
-                        id: config.adminRoleId, 
+                    ...ticketRoleIds(config).map((roleId) => ({
+                        id: roleId,
                         allow: [
-                            PermissionsBitField.Flags.ViewChannel, 
-                            PermissionsBitField.Flags.SendMessages, 
+                            PermissionsBitField.Flags.ViewChannel,
+                            PermissionsBitField.Flags.SendMessages,
                             PermissionsBitField.Flags.ReadMessageHistory
-                        ] 
-                    }
+                        ]
+                    }))
                 ]
             });
-            
-    
+
+
             await TicketUserData.create({
                 userId: targetUser.id,
                 guildId: guild.id,
                 ticketChannelId: ticketChannel.id
             });
-            
-          
-            await sendTicketWelcomeMessage(ticketChannel, targetUser, reason, ticketType);
-            
+
+
+            await sendTicketWelcomeMessage(ticketChannel, targetUser, reason, ticketType, config);
+
             return interaction.followUp({
                 content: `✅ Ticket created successfully in ${ticketChannel}`,
                 ephemeral: true
             });
         }
-        
-       
+
+
         if (subCommand === 'close') {
-        
-            const ticketData = await TicketUserData.findOne({ 
+
+            const ticketData = await TicketUserData.findOne({
                 ticketChannelId: channel.id,
                 guildId: guild.id
             });
-            
+
             if (!ticketData) {
                 return interaction.reply({
                     content: '❌ This command can only be used in ticket channels.',
                     ephemeral: true
                 });
             }
-            
-          
+
+
             if (ticketData.userId !== user.id) {
-                const hasPermission = member.permissions.has(PermissionsBitField.Flags.ManageChannels) || 
-                                    config.ownerId === user.id || 
-                                    member.roles.cache.has(config.adminRoleId);
-                
+                const hasPermission = isTicketStaff({ member, userId: user.id, config });
+
                 if (!hasPermission) {
                     return interaction.reply({
                         content: '❌ You do not have permission to close other users\' tickets.',
@@ -238,15 +233,15 @@ module.exports = {
                     });
                 }
             }
-            
+
             await interaction.deferReply({ ephemeral: true });
-            
+
             const reason = options.getString('reason') || 'No reason provided';
             const ticketOwner = await client.users.fetch(ticketData.userId).catch(() => null);
-         
+
             const transcriptAttachment = await generateTranscript(channel, client);
-            
-           
+
+
             if (ticketOwner) {
                 const closeEmbed = new EmbedBuilder()
                     .setColor('#FF5555')
@@ -255,7 +250,7 @@ module.exports = {
                     .addFields({ name: 'Close Reason', value: reason })
                     .setFooter({ text: 'Thanks for using our support system!', iconURL: ticketIcons.modIcon })
                     .setTimestamp();
-                
+
                 await ticketOwner.send({
                     content: 'Here is your ticket transcript:',
                     embeds: [closeEmbed],
@@ -264,7 +259,7 @@ module.exports = {
                     console.warn(`Could not DM user ${ticketOwner.tag}:`, err.message);
                 });
             }
-            
+
             // Send transcript to log channel
             if (config.transcriptChannelId) {
                 const logChannel = guild.channels.cache.get(config.transcriptChannelId);
@@ -278,20 +273,20 @@ module.exports = {
                             { name: 'Reason', value: reason }
                         )
                         .setTimestamp();
-                    
-                    await logChannel.send({ 
+
+                    await logChannel.send({
                         content: `📩 Transcript from ticket ${channel.name}`,
                         embeds: [logEmbed],
-                        files: [transcriptAttachment] 
+                        files: [transcriptAttachment]
                     });
                 }
             }
-            
+
             await interaction.followUp({
                 content: '✅ Ticket closing in 5 seconds...',
                 ephemeral: true
             });
-            
+
             // Delete channel and clean up database
             setTimeout(async () => {
                 try {
@@ -305,8 +300,8 @@ module.exports = {
     } else {
         const embed = new EmbedBuilder()
             .setColor('#3498db')
-            .setAuthor({ 
-                name: "Alert!", 
+            .setAuthor({
+                name: "Alert!",
                 iconURL: cmdIcons.dotIcon,
                 url: "https://discord.gg/xQF9f9yUEM"
             })
@@ -335,7 +330,7 @@ async function sendTicketEmbed(channel) {
         .setTimestamp();
 
     const { StringSelectMenuBuilder, ActionRowBuilder } = require('discord.js');
-    
+
     const menu = new StringSelectMenuBuilder()
         .setCustomId('select_ticket_type')
         .setPlaceholder('Choose ticket type')
@@ -350,14 +345,14 @@ async function sendTicketEmbed(channel) {
     const row = new ActionRowBuilder().addComponents(menu);
 
     try {
-      
+
         const messages = await channel.messages.fetch({ limit: 10 });
-        const botMessages = messages.filter(m => 
-            m.author.bot && 
-            m.embeds.length > 0 && 
+        const botMessages = messages.filter(m =>
+            m.author.bot &&
+            m.embeds.length > 0 &&
             m.embeds[0].data.author?.name === "Welcome to Ticket Support"
         );
-        
+
         if (botMessages.size > 0) {
 
             await botMessages.first().edit({ embeds: [embed], components: [row] });
@@ -373,9 +368,9 @@ async function sendTicketEmbed(channel) {
 }
 
 
-async function sendTicketWelcomeMessage(channel, user, reason, ticketType) {
+async function sendTicketWelcomeMessage(channel, user, reason, ticketType, config) {
     const { ButtonBuilder, ButtonStyle, ActionRowBuilder } = require('discord.js');
-    
+
     const ticketId = `${user.id}-${channel.id}`;
     const ticketEmbed = new EmbedBuilder()
         .setAuthor({ name: `${ticketType.charAt(0).toUpperCase() + ticketType.slice(1)} Ticket`, iconURL: ticketIcons.modIcon })
@@ -389,19 +384,15 @@ async function sendTicketWelcomeMessage(channel, user, reason, ticketType) {
         .setLabel('Close Ticket')
         .setStyle(ButtonStyle.Danger);
 
-    const pingButton = new ButtonBuilder()
-        .setCustomId(`ping_staff_${ticketId}`)
-        .setLabel('Ping Staff')
-        .setStyle(ButtonStyle.Primary);
+    const actionRow = new ActionRowBuilder().addComponents(closeButton);
 
-    const actionRow = new ActionRowBuilder().addComponents(closeButton, pingButton);
-
-    await channel.send({ 
-        content: `${user}`,
-        embeds: [ticketEmbed], 
-        components: [actionRow] 
+    const staffPing = staffMention(config);
+    await channel.send({
+        content: staffPing ? `${user} ${staffPing}` : `${user}`,
+        embeds: [ticketEmbed],
+        components: [actionRow]
     });
-    
+
 
     const confirmEmbed = new EmbedBuilder()
         .setColor(0x0099ff)
@@ -421,10 +412,10 @@ async function sendTicketWelcomeMessage(channel, user, reason, ticketType) {
 /*
  ██████╗ ██╗      █████╗  ██████╗███████╗██╗   ██╗████████╗
 ██╔════╝ ██║     ██╔══██╗██╔════╝██╔════╝╚██╗ ██╔╝╚══██╔══╝
-██║  ███╗██║     ███████║██║     █████╗   ╚████╔╝    ██║   
-██║   ██║██║     ██╔══██║██║     ██╔══╝    ╚██╔╝     ██║   
-╚██████╔╝███████╗██║  ██║╚██████╗███████╗   ██║      ██║   
- ╚═════╝ ╚══════╝╚═╝  ╚═╝ ╚═════╝╚══════╝   ╚═╝      ╚═╝   
+██║  ███╗██║     ███████║██║     █████╗   ╚████╔╝    ██║
+██║   ██║██║     ██╔══██║██║     ██╔══╝    ╚██╔╝     ██║
+╚██████╔╝███████╗██║  ██║╚██████╗███████╗   ██║      ██║
+ ╚═════╝ ╚══════╝╚═╝  ╚═╝ ╚═════╝╚══════╝   ╚═╝      ╚═╝
 
 -------------------------------------
 📡 Discord : https://discord.gg/xQF9f9yUEM

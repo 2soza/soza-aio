@@ -5,6 +5,7 @@ const ticketConfigSchema = new mongoose.Schema({
     ticketChannelId: { type: String, required: true },
     transcriptChannelId: { type: String, default: null },
     adminRoleId: { type: String, required: true },
+    extraAdminRoleIds: { type: [String], default: [] },
     status: { type: Boolean, default: true },
     ownerId: { type: String, required: true },
     categoryId: { type: String, default: null } 
