@@ -156,7 +156,7 @@ module.exports = {
                                 new ButtonBuilder()
                                 .setLabel('Join Support server')
                                 .setStyle(ButtonStyle.Link)
-                                .setURL(`https://discord.gg/xQF9f9yUEM`)
+                                .setURL(`https://share.google/v6mijaR1AnYsHEzqg`)
                             )
                     )
                     .addSeparatorComponents(
